@@ -17,7 +17,7 @@
 Hit this URL in your browser to seed the three demo accounts:
 
 ```
-<https://your-backend.onrender.com/setup-demo>
+<https://atomtracker.onrender.com/setup-demo>
 ```
 
 ### Demo Login Credentials
@@ -36,7 +36,7 @@ The Employee is already linked to the Manager via `mgr_id`, so the full approve 
 
 ## 2. Source Code Repository
 
-**GitHub:** `<https://github.com/your-username/atomtracker>`
+**GitHub:** `<https://github.com/dharmendra26-wiz/AtomTracker>`
 
 Repo layout:
 
