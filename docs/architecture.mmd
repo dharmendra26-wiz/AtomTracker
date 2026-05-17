@@ -1,0 +1,48 @@
+flowchart LR
+    subgraph CLIENT["Client (Browser)"]
+        REACT["React 19 + Vite SPA<br/>Tailwind v4 - react-router"]
+        AUTH_STORE[("localStorage<br/>JWT + role")]
+        REACT -. reads/writes .-> AUTH_STORE
+    end
+
+    subgraph TRANSPORT["Transport"]
+        REST["REST / JSON<br/>Authorization: Bearer JWT"]
+    end
+
+    subgraph SERVER["FastAPI Server (Uvicorn)"]
+        MAIN["main.py<br/>app + CORS + /login + /setup-demo"]
+        AUTH["auth.py<br/>bcrypt - PyJWT - get_curr_user - require_role"]
+        R_GOALS["routes_goals.py<br/>Sheets - Goals - Approve"]
+        R_CHK["routes_checkins.py<br/>Check-ins - compute_score()"]
+        R_ADMIN["routes_admin.py<br/>Override - AuditLogs - Analytics - CSV"]
+        MAIN --> AUTH
+        MAIN --> R_GOALS
+        MAIN --> R_CHK
+        MAIN --> R_ADMIN
+    end
+
+    subgraph DATA["Persistence (SQLite via SQLAlchemy)"]
+        T_USER[("users")]
+        T_SHEET[("goal_sheets")]
+        T_GOAL[("goals")]
+        T_CHK[("checkins")]
+        T_AUDIT[("audit_logs")]
+        T_USER -- "mgr_id (self-ref)" --> T_USER
+        T_USER --> T_SHEET
+        T_SHEET --> T_GOAL
+        T_GOAL --> T_CHK
+        T_USER -. "changed_by" .-> T_AUDIT
+    end
+
+    REACT --> REST
+    REST --> MAIN
+    AUTH --> T_USER
+    R_GOALS --> T_SHEET
+    R_GOALS --> T_GOAL
+    R_GOALS --> T_AUDIT
+    R_CHK --> T_CHK
+    R_CHK --> T_AUDIT
+    R_ADMIN --> T_GOAL
+    R_ADMIN --> T_SHEET
+    R_ADMIN --> T_USER
+    R_ADMIN --> T_AUDIT

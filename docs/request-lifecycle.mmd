@@ -1,0 +1,20 @@
+sequenceDiagram
+    actor Emp as Employee
+    participant FE as React SPA
+    participant API as FastAPI
+    participant DB as SQLite
+
+    Emp->>FE: Fills "Log Progress" form
+    FE->>API: POST /goals/{id}/checkins<br/>Authorization: Bearer JWT
+    API->>API: get_curr_user (verify JWT)
+    API->>DB: SELECT goal, sheet
+    API->>API: Check sheet.user_id == user.id<br/>Check sheet.status == Locked
+    alt First check-in for this quarter
+        API->>DB: INSERT checkin
+    else Re-logging same quarter
+        API->>DB: UPDATE checkin
+        API->>DB: INSERT audit_log<br/>(CheckIn, update_actual, old to new)
+    end
+    DB-->>API: commit (single transaction)
+    API-->>FE: 200 OK + check-in JSON
+    FE-->>Emp: UI refreshes,<br/>score recomputes
