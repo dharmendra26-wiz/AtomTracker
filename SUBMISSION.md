@@ -8,9 +8,9 @@
 
 | Component       | URL                                          |
 | --------------- | -------------------------------------------- |
-| **Frontend**    | `<https://your-frontend.vercel.app>`         |
-| **Backend API** | `<https://your-backend.onrender.com>`        |
-| **API Docs**    | `<https://your-backend.onrender.com/docs>`   |
+| **Frontend**    | `<https://atom-tracker-rust.vercel.app>`         |
+| **Backend API** | `<https://atomtracker.onrender.com>`        |
+| **API Docs**    | `<https://atomtracker.onrender.com/docs>`   |
 
 ### One-time setup (after first deploy)
 
