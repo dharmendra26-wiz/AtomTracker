@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Users, ClipboardList, TrendingUp, Clock, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { api } from "./api";
 import { useAuth } from "./AuthContext";
@@ -15,11 +15,24 @@ const STATUS_INFO = {
 export default function ManagerDashboard() {
   const { user } = useAuth();
   const nav      = useNavigate();
+  const location = useLocation();
   const [sheets, setSheets]   = useState([]);
   const [stats,  setStats]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr]         = useState("");
   const retryTimer = useRef(null);
+
+  // Route-based view filtering
+  const isTeamSheetsView  = location.pathname === "/manager/team";
+  const isCheckinsView    = location.pathname === "/manager/checkins";
+
+  const visibleSheets = isTeamSheetsView
+    ? sheets.filter(s => s.status === "Submitted")
+    : isCheckinsView
+    ? sheets.filter(s => s.status === "Locked")
+    : sheets;
+
+  const pageTitle = isTeamSheetsView ? "Pending Review" : isCheckinsView ? "Team Check-ins" : "Manager Console";
 
   function loadAll() {
     let alive = true;
@@ -66,7 +79,7 @@ export default function ManagerDashboard() {
 
   return (
     <Layout
-      title="Manager Console"
+      title={pageTitle}
       actions={<span className="text-sm text-slate-500">Signed in as {user?.name}</span>}
     >
       {/* KPI strip */}
@@ -129,22 +142,33 @@ export default function ManagerDashboard() {
 
       {/* Sheets */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-bold text-slate-800">Team Goal Sheets</h2>
-        <span className="text-sm text-slate-500">{sheets.length} active</span>
+        <h2 className="font-bold text-slate-800">
+          {isCheckinsView ? "Locked Sheets (Check-in Review)" : isTeamSheetsView ? "Submitted Sheets — Awaiting Review" : "Team Goal Sheets"}
+        </h2>
+        <span className="text-sm text-slate-500">{visibleSheets.length} {isTeamSheetsView ? "pending" : isCheckinsView ? "locked" : "active"}</span>
       </div>
 
       {loading ? (
         <div className="flex items-center gap-3 text-slate-500 py-16 justify-center">
           <Loader2 className="animate-spin-slow" size={22} /> Loading team sheets…
         </div>
-      ) : sheets.length === 0 ? (
+      ) : visibleSheets.length === 0 ? (
         <div className="card text-center py-16 text-slate-400">
           <ClipboardList size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium">No submissions yet</p>
+          <p className="font-medium">
+            {isTeamSheetsView ? "No sheets pending review" : isCheckinsView ? "No locked sheets yet" : "No submissions yet"}
+          </p>
+          <p className="text-sm mt-1 max-w-xs mx-auto">
+            {isTeamSheetsView
+              ? "Employees need to submit their goal sheets before they appear here."
+              : isCheckinsView
+              ? "Approve a submitted sheet first — it will then appear here for check-in review."
+              : "Waiting for your team members to submit their goal sheets."}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger">
-          {sheets.map(s => {
+          {visibleSheets.map(s => {
             const info = STATUS_INFO[s.status] || STATUS_INFO.Submitted;
             const memberStat = stats?.find(m => m.user_id === s.user_id);
             return (

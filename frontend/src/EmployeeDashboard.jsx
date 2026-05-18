@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { FileText, Plus, TrendingUp, Clock, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { api } from "./api";
 import { useAuth } from "./AuthContext";
@@ -39,12 +39,18 @@ function ProgressRing({ pct, size = 56, stroke = 5 }) {
 export default function EmployeeDashboard() {
   const { user } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
   const [sheets, setSheets]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr]         = useState("");
   const [year, setYear]       = useState(String(new Date().getFullYear()));
   const [creating, setCreating] = useState(false);
   const retryTimer = useRef(null);
+
+  // Determine view mode from route
+  const isGoalsView    = location.pathname === "/employee/goals";
+  const isCheckinView  = location.pathname === "/employee/checkins";
+  const viewTitle = isGoalsView ? "My Goals" : isCheckinView ? "Check-ins" : null;
 
   const load = useCallback(async () => {
     setLoading(true); setErr("");
@@ -85,9 +91,16 @@ export default function EmployeeDashboard() {
   const submitted = sheets.filter(s => s.status === "Submitted").length;
   const draft     = sheets.filter(s => s.status === "Draft").length;
 
+  // Filter sheets based on the current nav view
+  const visibleSheets = isGoalsView
+    ? sheets.filter(s => s.status === "Draft" || s.status === "Submitted")
+    : isCheckinView
+    ? sheets.filter(s => s.status === "Locked")
+    : sheets;
+
   return (
     <Layout
-      title={`Good day, ${user?.name?.split(" ")[0] || "there"} 👋`}
+      title={viewTitle || `Good day, ${user?.name?.split(" ")[0] || "there"} 👋`}
       actions={
         <form onSubmit={createSheet} className="flex items-center gap-2">
           <input
@@ -143,20 +156,30 @@ export default function EmployeeDashboard() {
 
       {/* Sheets list */}
       <div>
-        <h2 className="text-base font-bold text-slate-800 mb-4">My Goal Sheets</h2>
+        <h2 className="text-base font-bold text-slate-800 mb-4">
+          {isCheckinView ? "Locked Sheets (Quarterly Check-ins)" : isGoalsView ? "My Active Goal Sheets" : "My Goal Sheets"}
+        </h2>
         {loading ? (
           <div className="flex items-center gap-3 text-slate-500 py-12 justify-center">
             <Loader2 className="animate-spin-slow" size={22} /> Loading…
           </div>
-        ) : sheets.length === 0 ? (
+        ) : visibleSheets.length === 0 ? (
           <div className="card text-center py-16 text-slate-400 animate-fade-in">
             <FileText size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="font-medium">No sheets yet</p>
-            <p className="text-sm mt-1">Use the "New Sheet" button above to get started.</p>
+            <p className="font-medium">
+              {isCheckinView ? "No locked sheets yet" : isGoalsView ? "No active goal sheets" : "No sheets yet"}
+            </p>
+            <p className="text-sm mt-1">
+              {isCheckinView
+                ? "Once your manager approves a sheet, it will appear here for quarterly check-ins."
+                : isGoalsView
+                ? "Create a sheet from the Dashboard and add your goals."
+                : "Use the \"New Sheet\" button above to get started."}
+            </p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger">
-            {sheets.map((s) => {
+            {visibleSheets.map((s) => {
               const info = STATUS_INFO[s.status] || STATUS_INFO.Draft;
               const isRework = s.reject_comment && s.status === "Draft";
               return (
