@@ -51,6 +51,121 @@ class Analytics(BaseModel):
     totals: dict
 
 
+# -------------------- Cascade (Shared Goals) --------------------
+
+class CascadeIn(BaseModel):
+    employee_emails: List[str]
+    year: str
+    default_weight: int = 10
+
+
+class CascadeResult(BaseModel):
+    email: str
+    status: str  # "cloned" | "already shared" | "skipped: <reason>"
+    new_goal_id: Optional[str] = None
+
+
+@router.post("/goals/{goal_id}/cascade", response_model=List[CascadeResult])
+def cascade_goal(
+    goal_id: str,
+    body: CascadeIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_role(["Admin", "Manager"])),
+):
+    """Push a goal to multiple employees' Draft sheets as shared copies."""
+    from models import GoalSheet  # local import keeps top of file tidy
+
+    source = db.query(Goal).filter(Goal.id == goal_id).first()
+    if not source:
+        raise HTTPException(404, "Source goal not found")
+    if source.source_goal_id is not None:
+        raise HTTPException(400, "Cannot cascade a goal that is itself a shared copy. Use the primary goal.")
+    if body.default_weight < 10:
+        raise HTTPException(400, "default_weight must be at least 10")
+
+    # Mark the source as shared so the UI can show a "Primary" badge.
+    source.is_shared = True
+
+    results: List[CascadeResult] = []
+    for email in body.employee_emails:
+        email = email.strip().lower()
+        if not email:
+            continue
+
+        recipient = db.query(User).filter(User.email == email).first()
+        if not recipient:
+            results.append(CascadeResult(email=email, status="skipped: user not found"))
+            continue
+
+        # Manager scoping: can only cascade to direct reports. Admin bypasses.
+        if actor.role == Role.Manager and recipient.mgr_id != actor.id:
+            results.append(CascadeResult(email=email, status="skipped: not your direct report"))
+            continue
+
+        if recipient.id == source.sheet.user_id:
+            results.append(CascadeResult(email=email, status="skipped: source owner"))
+            continue
+
+        # Find or auto-create a Draft sheet for the given year.
+        sheet = db.query(GoalSheet).filter(
+            GoalSheet.user_id == recipient.id,
+            GoalSheet.year == body.year,
+        ).first()
+        if not sheet:
+            sheet = GoalSheet(user_id=recipient.id, year=body.year, status=SheetStatus.Draft)
+            db.add(sheet)
+            db.flush()
+        elif sheet.status != SheetStatus.Draft:
+            results.append(CascadeResult(email=email, status=f"skipped: sheet is {sheet.status.value}"))
+            continue
+
+        # Already cascaded to this employee?
+        existing = db.query(Goal).filter(
+            Goal.sheet_id == sheet.id,
+            Goal.source_goal_id == source.id,
+        ).first()
+        if existing:
+            results.append(CascadeResult(email=email, status="already shared", new_goal_id=existing.id))
+            continue
+
+        # 8-goal cap
+        goal_count = db.query(Goal).filter(Goal.sheet_id == sheet.id).count()
+        if goal_count >= 8:
+            results.append(CascadeResult(email=email, status="skipped: 8-goal cap reached"))
+            continue
+
+        copy = Goal(
+            sheet_id=sheet.id,
+            title=source.title,
+            desc=source.desc,
+            thrust_area=source.thrust_area,
+            uom=source.uom,
+            target=source.target,
+            weight=body.default_weight,
+            is_shared=True,
+            source_goal_id=source.id,
+        )
+        db.add(copy)
+        db.flush()
+        results.append(CascadeResult(email=email, status="cloned", new_goal_id=copy.id))
+
+        db.add(AuditLog(
+            entity_type="Goal",
+            entity_id=copy.id,
+            changed_by=actor.id,
+            action="cascade",
+            old_value=None,
+            new_value=json.dumps({
+                "source_goal_id": source.id,
+                "to_user": recipient.email,
+                "year": body.year,
+            }),
+        ))
+
+    db.commit()
+    return results
+
+
 # -------------------- Admin: override goal --------------------
 
 @router.post("/goals/{goal_id}/override", response_model=GoalOut)
@@ -58,14 +173,31 @@ def override_goal(
     goal_id: str,
     body: GoalOverride,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_role(["Admin"])),
+    actor: User = Depends(require_role(["Admin", "Manager"])),
 ):
+    """Admins can override any goal anytime. Managers can edit goals on Submitted sheets they own."""
     if body.target is None and body.weight is None:
         raise HTTPException(400, "Provide at least one of: target, weight")
 
     goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not goal:
         raise HTTPException(404, "Goal not found")
+
+    # Shared-copy protection: title/target are owned by the primary.
+    if goal.source_goal_id is not None and body.target is not None:
+        raise HTTPException(400, "Cannot change target on a shared copy. Edit the primary goal instead.")
+
+    sheet = db.query(GoalSheet).filter(GoalSheet.id == goal.sheet_id).first()
+
+    if actor.role == Role.Manager:
+        owner = db.query(User).filter(User.id == sheet.user_id).first()
+        if not owner or owner.mgr_id != actor.id:
+            raise HTTPException(403, "This employee does not report to you")
+        if sheet.status != SheetStatus.Submitted:
+            raise HTTPException(
+                400,
+                "Managers can only inline-edit goals while the sheet is Submitted (not yet locked)",
+            )
 
     old = {"target": goal.target, "weight": goal.weight}
     new = dict(old)
@@ -80,7 +212,7 @@ def override_goal(
     log = AuditLog(
         entity_type="Goal",
         entity_id=goal.id,
-        changed_by=admin.id,
+        changed_by=actor.id,
         action="override",
         old_value=json.dumps(old),
         new_value=json.dumps(new),
@@ -156,6 +288,91 @@ def analytics(
         goals_by_thrust_area=goals_by_thrust_area,
         totals=totals,
     )
+
+
+# -------------------- Completion Dashboard --------------------
+
+class CompletionRow(BaseModel):
+    user_id: str
+    user_name: str
+    user_email: str
+    manager_email: Optional[str] = None
+    sheet_id: Optional[str] = None
+    sheet_status: Optional[str] = None
+    goals_count: int
+    q1: bool
+    q2: bool
+    q3: bool
+    q4: bool
+
+
+class CompletionOut(BaseModel):
+    year: str
+    employees: List[CompletionRow]
+    summary: dict
+
+
+@router.get("/completion", response_model=CompletionOut)
+def completion_dashboard(
+    year: Optional[str] = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_role(["Admin"])),
+):
+    """Per-employee check-in completion matrix for the given year."""
+    from models import CheckIn
+
+    y = year or str(datetime.now().year)
+    employees = db.query(User).filter(User.role == Role.Employee).order_by(User.name).all()
+
+    rows: List[CompletionRow] = []
+    totals = {"Q1": 0, "Q2": 0, "Q3": 0, "Q4": 0}
+
+    for u in employees:
+        mgr = db.query(User).filter(User.id == u.mgr_id).first() if u.mgr_id else None
+        sheet = db.query(GoalSheet).filter(
+            GoalSheet.user_id == u.id, GoalSheet.year == y
+        ).first()
+
+        quarter_done = {"Q1": False, "Q2": False, "Q3": False, "Q4": False}
+        goals_count = 0
+        if sheet:
+            goals_count = len(sheet.goals)
+            # A quarter counts as "done" if every owned (non-shared-copy) goal has a check-in for it.
+            owned = [g for g in sheet.goals if g.source_goal_id is None]
+            for q in ["Q1", "Q2", "Q3", "Q4"]:
+                if owned:
+                    quarter_done[q] = all(
+                        any(c.qtr.value == q for c in g.checkins) for g in owned
+                    )
+
+        for q, ok in quarter_done.items():
+            if ok:
+                totals[q] += 1
+
+        rows.append(CompletionRow(
+            user_id=u.id,
+            user_name=u.name,
+            user_email=u.email,
+            manager_email=mgr.email if mgr else None,
+            sheet_id=sheet.id if sheet else None,
+            sheet_status=sheet.status.value if sheet else None,
+            goals_count=goals_count,
+            q1=quarter_done["Q1"], q2=quarter_done["Q2"],
+            q3=quarter_done["Q3"], q4=quarter_done["Q4"],
+        ))
+
+    headcount = len(employees)
+    summary = {
+        "headcount": headcount,
+        "with_sheet": sum(1 for r in rows if r.sheet_id),
+        "locked_sheets": sum(1 for r in rows if r.sheet_status == "Locked"),
+        "q1_pct": round(100 * totals["Q1"] / headcount, 1) if headcount else 0,
+        "q2_pct": round(100 * totals["Q2"] / headcount, 1) if headcount else 0,
+        "q3_pct": round(100 * totals["Q3"] / headcount, 1) if headcount else 0,
+        "q4_pct": round(100 * totals["Q4"] / headcount, 1) if headcount else 0,
+    }
+
+    return CompletionOut(year=y, employees=rows, summary=summary)
 
 
 # -------------------- Admin: achievement CSV report --------------------

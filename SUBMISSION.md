@@ -69,9 +69,28 @@ AtomTracker is a clean two-tier app: a stateless React SPA talking to a single F
 | **JWT in `Authorization` header**, not cookies | Stateless server, trivial CORS, no CSRF surface |
 | **Single generic `AuditLog` table** with `(entity_type, entity_id)` | One audit pattern across Goals/Sheets/Check-ins; easy to extend to new entities without migrations |
 | **Audit writes share the transaction** of the change | Either both persist or neither does — no orphan logs, no missing logs |
+| **Shared Goals via `source_goal_id` self-FK on `Goal`** | One row of truth for actuals — copies are read-only links that proxy the primary's check-ins, so cascaded KPIs stay consistent for free |
 | **Upsert check-ins** keyed on `(goal_id, quarter)` | "Latest" is unambiguous; revisions still preserved in the audit trail |
 | **Server re-validates everything** the client validates (weight = 100, role checks, ownership) | UI never bypasses business rules |
 | **SQLite for the hackathon**, swappable via `DB_URL` env var | Zero-config now, Postgres-ready in one env-var change |
+
+### Feature coverage vs. the problem statement
+
+| BRD requirement | Status | Endpoint(s) |
+| --- | --- | --- |
+| Three roles (Employee / Manager / Admin) with RBAC | ✅ | `auth.require_role` |
+| Up to 8 goals per sheet, min weight 10, total = 100 | ✅ | `POST /sheets/{id}/goals`, `POST /sheets/{id}/submit` |
+| Manager approves and locks the sheet | ✅ | `POST /sheets/{id}/approve` |
+| **Manager returns sheet for rework with a comment** | ✅ | `POST /sheets/{id}/reject` |
+| **Manager inline edits target/weight pre-approval** | ✅ | `POST /goals/{id}/override` (Manager scope: own reports on Submitted only) |
+| Quarterly check-ins with auto-computed scores per UoM | ✅ | `POST /goals/{id}/checkins`, `GET /sheets/{id}/progress` |
+| Manager comments on a specific check-in | ✅ | `POST /checkins/{id}/comment` |
+| **Shared / cascaded goals (weight-only edit, actuals sync)** | ✅ | `POST /goals/{id}/cascade` |
+| Admin override of locked goals with audit trail | ✅ | `POST /goals/{id}/override` |
+| **Completion dashboard (per-employee × quarter matrix)** | ✅ | `GET /completion` |
+| Full audit trail explorer (per entity + system-wide feed) | ✅ | `GET /audit-logs`, `GET /audit-logs/{entity_id}` |
+| Achievement CSV report | ✅ | `GET /reports/achievements.csv` |
+| Org analytics (users by role, sheets by status, goals by thrust area) | ✅ | `GET /analytics` |
 
 ---
 

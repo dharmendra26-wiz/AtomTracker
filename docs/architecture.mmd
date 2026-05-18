@@ -12,9 +12,9 @@ flowchart LR
     subgraph SERVER["FastAPI Server (Uvicorn)"]
         MAIN["main.py<br/>app + CORS + /login + /setup-demo"]
         AUTH["auth.py<br/>bcrypt - PyJWT - get_curr_user - require_role"]
-        R_GOALS["routes_goals.py<br/>Sheets - Goals - Approve"]
+        R_GOALS["routes_goals.py<br/>Sheets - Goals - Approve - Reject"]
         R_CHK["routes_checkins.py<br/>Check-ins - compute_score()"]
-        R_ADMIN["routes_admin.py<br/>Override - AuditLogs - Analytics - CSV"]
+        R_ADMIN["routes_admin.py<br/>Override - Cascade - Completion<br/>AuditLogs - Analytics - CSV"]
         MAIN --> AUTH
         MAIN --> R_GOALS
         MAIN --> R_CHK
@@ -31,6 +31,7 @@ flowchart LR
         T_USER --> T_SHEET
         T_SHEET --> T_GOAL
         T_GOAL --> T_CHK
+        T_GOAL -- "source_goal_id (shared)" --> T_GOAL
         T_USER -. "changed_by" .-> T_AUDIT
     end
 

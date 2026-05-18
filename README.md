@@ -40,10 +40,24 @@ The overall sheet score is a weighted average across goals.
 A single generic `AuditLog` table tracks `(entity_type, entity_id, changed_by, action, old_value, new_value, timestamp)` for:
 
 - `GoalSheet / approve` — when a manager locks a sheet
-- `Goal / override` — when an admin changes target or weight
+- `GoalSheet / reject` — when a manager returns a sheet for rework (with comment)
+- `Goal / override` — when an admin or manager changes target / weight
+- `Goal / cascade` — when an admin/manager pushes a shared goal to an employee
 - `CheckIn / update_actual` — when an employee revises a previously logged quarter
 
 Each audit row is written in the **same transaction** as the change it records — if the commit fails, neither persists. Old/new values are stored as JSON strings, rendered as red→green diff pills in the Admin Console.
+
+### 🔁 Shared Goals (Cascade)
+Admins and Managers can push a single departmental KPI to any number of employees from the Admin Console. Recipients see a "Shared" badge and **can only adjust the weight** — title, target, and UoM are locked. The primary owner logs actuals once and **every linked copy's score updates automatically** (the progress endpoint reads check-ins from the source goal).
+
+### 🔙 Return for Rework
+Managers can reject a Submitted sheet with a required comment. The sheet flips back to Draft with the comment surfaced as a yellow banner on the employee's editor, and an audit row records the round-trip. Re-submitting clears the comment.
+
+### ✏️ Manager Inline Edit
+While a sheet is Submitted (post-employee, pre-approval), the Manager can click any target or weight to edit it inline. Every edit creates a `Goal / override` audit row attributed to the manager.
+
+### 📅 Check-in Completion Dashboard
+Admin Console shows a live matrix of every employee × Q1/Q2/Q3/Q4 with quarterly completion percentages — instantly answer "who hasn't filed Q2 yet?".
 
 ### 📥 One-Click CSV Report
 `GET /reports/achievements.csv` joins Employees ↔ Sheets ↔ Goals ↔ Check-ins, runs `compute_score` on the latest actual per goal, and streams a download-ready CSV.
@@ -121,10 +135,11 @@ VITE_API_URL=https://your-deployed-backend.example.com
 ## Demo Walkthrough
 
 1. **Employee**: create a 2026 sheet → add goals totaling weight 100 → submit for approval
-2. **Manager**: review the submitted sheet → Approve & Lock
-3. **Employee**: open the now-Locked sheet → log Q1 actuals (and revise them — triggers an audit log)
-4. **Manager**: open the same sheet → add feedback to a specific check-in
-5. **Admin**: open the Admin Console → see live analytics, paste any Sheet/Goal/Check-in ID into the audit explorer to see the full change history → download the achievement CSV
+2. **Manager**: open the submitted sheet → click a target/weight to edit inline, OR "Return for Rework" with a comment, OR Approve & Lock
+3. **Employee** (if returned): see the yellow rework banner with the manager's note → fix and re-submit
+4. **Employee** (locked): log Q1 actuals (revise once to trigger a `CheckIn / update_actual` audit log)
+5. **Manager**: open the same locked sheet → add feedback to a specific check-in
+6. **Admin**: open the Admin Console → cascade a primary goal to multiple employees via the "Shared Goals" section, watch the completion matrix update live, paste any Sheet/Goal/Check-in ID into the audit explorer, and download the achievement CSV
 
 ## Project Structure
 

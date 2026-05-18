@@ -70,6 +70,8 @@ class GoalSheet(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     year = Column(String, nullable=False)
     status = Column(Enum(SheetStatus), nullable=False, default=SheetStatus.Draft)
+    # Populated when a manager returns the sheet for rework.
+    reject_comment = Column(String, nullable=True)
 
     user = relationship("User", back_populates="sheets")
     goals = relationship("Goal", back_populates="sheet", cascade="all, delete-orphan")
@@ -87,9 +89,13 @@ class Goal(Base):
     target = Column(Float, nullable=False, default=0.0)
     weight = Column(Integer, nullable=False, default=0)
     is_shared = Column(Boolean, nullable=False, default=False)
+    # If set, this goal is a copy cascaded from another (the "primary") goal.
+    # Check-ins live on the primary; this copy reads them via the source link.
+    source_goal_id = Column(String, ForeignKey("goals.id"), nullable=True)
 
     sheet = relationship("GoalSheet", back_populates="goals")
     checkins = relationship("CheckIn", back_populates="goal", cascade="all, delete-orphan")
+    source = relationship("Goal", remote_side=[id], backref="copies")
 
 
 class CheckIn(Base):

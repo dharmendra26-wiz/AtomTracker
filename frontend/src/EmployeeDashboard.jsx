@@ -138,10 +138,19 @@ export default function EmployeeDashboard() {
                           </div>
                         </div>
                       </div>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_STYLES[s.status] || "bg-slate-100 text-slate-700"}`}>
-                        {s.status}
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                        s.reject_comment && s.status === "Draft"
+                          ? "bg-amber-100 text-amber-800"
+                          : (STATUS_STYLES[s.status] || "bg-slate-100 text-slate-700")
+                      }`}>
+                        {s.reject_comment && s.status === "Draft" ? "Returned for rework" : s.status}
                       </span>
                     </div>
+                    {s.reject_comment && s.status === "Draft" && (
+                      <p className="text-xs text-amber-700 mt-2 italic truncate">
+                        "{s.reject_comment}"
+                      </p>
+                    )}
                   </button>
                 </li>
               ))}

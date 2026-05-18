@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Users, FileText, Target, Search, LogOut, ArrowRight, History, Download, X,
+  Users, FileText, Target, Search, LogOut, ArrowRight, History, Download, X, Share2, CalendarCheck,
 } from "lucide-react";
 import { api, downloadBlob } from "./api";
 import { useAuth } from "./AuthContext";
@@ -191,6 +191,12 @@ export default function AdminDashboard() {
           )}
         </section>
 
+        {/* ---------- Completion ---------- */}
+        <CompletionSection />
+
+        {/* ---------- Cascade Goal ---------- */}
+        <CascadeSection />
+
         {/* ---------- Audit explorer ---------- */}
         <section>
           <div className="flex items-center gap-2 mb-1">
@@ -319,6 +325,268 @@ function DistributionCard({ title, icon, data, colors }) {
         </ul>
       )}
     </div>
+  );
+}
+
+function CompletionSection() {
+  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function load(y) {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await api(`/completion?year=${y}`);
+      setData(res);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(year); }, []);
+
+  const quarters = ["Q1", "Q2", "Q3", "Q4"];
+
+  return (
+    <section>
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
+        <div className="flex items-center gap-2">
+          <CalendarCheck size={20} className="text-slate-700" />
+          <h2 className="text-lg font-semibold text-slate-900">Check-in completion dashboard</h2>
+        </div>
+        <form
+          onSubmit={(e) => { e.preventDefault(); load(year); }}
+          className="flex items-center gap-2"
+        >
+          <input
+            type="text"
+            pattern="\d{4}"
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            className="w-24 px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="text-sm px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-60"
+          >
+            {loading ? "Loading..." : "Refresh"}
+          </button>
+        </form>
+      </div>
+      <p className="text-sm text-slate-500 mb-4">
+        Real-time per-employee check-in status for the selected year. A quarter is "complete" when every owned (non-shared-copy) goal has a logged actual.
+      </p>
+
+      {err && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+          {err}
+        </p>
+      )}
+
+      {data && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            {quarters.map((q) => {
+              const pct = data.summary[`${q.toLowerCase()}_pct`];
+              return (
+                <div key={q} className="bg-white border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">{q} completion</p>
+                  <p className="text-2xl font-semibold text-slate-900 mt-1">{pct}%</p>
+                  <div className="h-1.5 mt-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${pct === 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-slate-300"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-slate-500 text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="px-4 py-2.5 font-medium">Employee</th>
+                  <th className="px-4 py-2.5 font-medium">Reports to</th>
+                  <th className="px-4 py-2.5 font-medium">Sheet</th>
+                  <th className="px-4 py-2.5 font-medium text-center">Goals</th>
+                  {quarters.map((q) => (
+                    <th key={q} className="px-3 py-2.5 font-medium text-center">{q}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.employees.length === 0 && (
+                  <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">No employees found.</td></tr>
+                )}
+                {data.employees.map((r) => (
+                  <tr key={r.user_id}>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-900">{r.user_name}</div>
+                      <div className="text-xs text-slate-500">{r.user_email}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{r.manager_email || "—"}</td>
+                    <td className="px-4 py-3">
+                      {r.sheet_status ? (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                          r.sheet_status === "Locked" ? "bg-emerald-100 text-emerald-800"
+                          : r.sheet_status === "Submitted" ? "bg-amber-100 text-amber-800"
+                          : "bg-slate-100 text-slate-700"
+                        }`}>
+                          {r.sheet_status}
+                        </span>
+                      ) : <span className="text-xs text-slate-400">No sheet</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center text-slate-600">{r.goals_count}</td>
+                    {["q1","q2","q3","q4"].map((k) => (
+                      <td key={k} className="px-3 py-3 text-center">
+                        {r[k] ? (
+                          <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-sm">✓</span>
+                        ) : (
+                          <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-sm">·</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function CascadeSection() {
+  const [goalId, setGoalId] = useState("");
+  const [emails, setEmails] = useState("");
+  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [weight, setWeight] = useState(20);
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState(null);
+  const [err, setErr] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    setResults(null);
+    try {
+      const emailList = emails.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+      if (emailList.length === 0) throw new Error("Add at least one employee email");
+      const res = await api(`/goals/${goalId.trim()}/cascade`, {
+        method: "POST",
+        body: { employee_emails: emailList, year, default_weight: Number(weight) },
+      });
+      setResults(res);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-1">
+        <Share2 size={20} className="text-slate-700" />
+        <h2 className="text-lg font-semibold text-slate-900">Cascade a goal (Shared Goals)</h2>
+      </div>
+      <p className="text-sm text-slate-500 mb-4">
+        Push a primary goal as a shared copy to multiple employees. Recipients can only adjust weight; the primary owner's actuals flow through automatically.
+      </p>
+
+      <form onSubmit={submit} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Source Goal ID</label>
+            <input
+              type="text"
+              required
+              value={goalId}
+              onChange={(e) => setGoalId(e.target.value)}
+              placeholder="Paste a Goal UUID from any sheet"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Year</label>
+            <input
+              type="text"
+              required
+              pattern="\d{4}"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            Recipient employee emails <span className="text-slate-400 font-normal">(comma or newline separated)</span>
+          </label>
+          <textarea
+            rows={2}
+            required
+            value={emails}
+            onChange={(e) => setEmails(e.target.value)}
+            placeholder="employee@test.com, emp2@test.com"
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Default weight on each copy</label>
+            <input
+              type="number"
+              min={10}
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              className="w-32 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={busy}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-60"
+          >
+            <Share2 size={16} /> {busy ? "Cascading..." : "Cascade Goal"}
+          </button>
+        </div>
+      </form>
+
+      {err && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-3">{err}</p>
+      )}
+
+      {results && (
+        <ul className="mt-4 space-y-2">
+          {results.map((r, i) => {
+            const ok = r.status === "cloned" || r.status === "already shared";
+            return (
+              <li
+                key={i}
+                className={`flex items-center justify-between text-sm rounded-lg px-3 py-2 border ${
+                  ok
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    : "bg-amber-50 border-amber-200 text-amber-800"
+                }`}
+              >
+                <span className="font-medium">{r.email}</span>
+                <span>{r.status}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

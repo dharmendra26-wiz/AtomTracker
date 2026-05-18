@@ -22,6 +22,7 @@ class SheetOut(BaseModel):
     user_id: str
     year: str
     status: SheetStatus
+    reject_comment: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -59,6 +60,10 @@ class TeamSheetOut(BaseModel):
     goal_count: int
 
 
+class RejectIn(BaseModel):
+    comment: str
+
+
 # -------------------- Employee: list my sheets --------------------
 
 @router.get("/my-sheets", response_model=list[SheetOut])
@@ -94,6 +99,37 @@ def create_sheet(
     db.commit()
     db.refresh(sheet)
     return sheet
+
+
+# -------------------- Employee: update goal weight --------------------
+
+class WeightUpdate(BaseModel):
+    weight: int
+
+
+@router.patch("/goals/{goal_id}/weight")
+def update_goal_weight(
+    goal_id: str,
+    body: WeightUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_curr_user),
+):
+    """Sheet owner adjusts weight on their own goals (shared or not) in Draft state."""
+    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    if not goal:
+        raise HTTPException(404, "Goal not found")
+
+    sheet = db.query(GoalSheet).filter(GoalSheet.id == goal.sheet_id).first()
+    if sheet.user_id != user.id:
+        raise HTTPException(403, "Not your goal")
+    if sheet.status != SheetStatus.Draft:
+        raise HTTPException(400, "Weights can only be changed while the sheet is Draft")
+    if body.weight < 10:
+        raise HTTPException(400, "Weight must be at least 10")
+
+    goal.weight = body.weight
+    db.commit()
+    return {"msg": "Weight updated", "goal_id": goal.id, "weight": goal.weight}
 
 
 # -------------------- Employee: add goal --------------------
@@ -157,6 +193,7 @@ def submit_sheet(
         raise HTTPException(400, f"Goal weights must sum to exactly 100 (current: {total})")
 
     sheet.status = SheetStatus.Submitted
+    sheet.reject_comment = None  # clear any stale rework note on re-submit
     db.commit()
     return {"msg": "Sheet submitted", "sheet_id": sheet.id, "status": sheet.status.value}
 
@@ -226,3 +263,43 @@ def approve_sheet(
 
     db.commit()
     return {"msg": "Sheet approved and locked", "sheet_id": sheet.id, "status": sheet.status.value}
+
+
+# -------------------- Manager: return for rework --------------------
+
+@router.post("/sheets/{sheet_id}/reject")
+def reject_sheet(
+    sheet_id: str,
+    body: RejectIn,
+    db: Session = Depends(get_db),
+    mgr: User = Depends(require_role(["Manager", "Admin"])),
+):
+    """Send a Submitted sheet back to Draft with a rework comment."""
+    if not body.comment or not body.comment.strip():
+        raise HTTPException(400, "A rework comment is required")
+
+    sheet = db.query(GoalSheet).filter(GoalSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(404, "Sheet not found")
+    if sheet.status != SheetStatus.Submitted:
+        raise HTTPException(400, "Only Submitted sheets can be returned for rework")
+
+    if mgr.role == Role.Manager:
+        owner = db.query(User).filter(User.id == sheet.user_id).first()
+        if not owner or owner.mgr_id != mgr.id:
+            raise HTTPException(403, "This employee does not report to you")
+
+    sheet.status = SheetStatus.Draft
+    sheet.reject_comment = body.comment.strip()
+
+    db.add(AuditLog(
+        entity_type="GoalSheet",
+        entity_id=sheet.id,
+        changed_by=mgr.id,
+        action="reject",
+        old_value=json.dumps({"status": "Submitted"}),
+        new_value=json.dumps({"status": "Draft", "comment": sheet.reject_comment}),
+    ))
+
+    db.commit()
+    return {"msg": "Sheet returned for rework", "sheet_id": sheet.id, "status": sheet.status.value}

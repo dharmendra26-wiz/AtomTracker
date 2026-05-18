@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Send, Target } from "lucide-react";
+import { ArrowLeft, Plus, Send, Target, Share2, Check, AlertTriangle } from "lucide-react";
 import { api } from "./api";
 import IdChip from "./IdChip";
 
@@ -40,7 +40,12 @@ export default function SheetDetail() {
     setErr("");
     try {
       const data = await api(`/sheets/${id}/progress`);
-      setSheet({ id: data.sheet_id, year: data.year, status: data.status });
+      setSheet({
+        id: data.sheet_id,
+        year: data.year,
+        status: data.status,
+        reject_comment: data.reject_comment,
+      });
       setGoals(data.goals);
     } catch (e) {
       setErr(e.message);
@@ -123,6 +128,19 @@ export default function SheetDetail() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        {sheet?.reject_comment && isDraft && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+            <div className="p-1.5 bg-amber-100 text-amber-700 rounded-lg shrink-0">
+              <AlertTriangle size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900">Sent back for rework by your manager</p>
+              <p className="text-sm text-amber-800 mt-0.5 break-words">{sheet.reject_comment}</p>
+              <p className="text-xs text-amber-700 mt-1">Make your changes and re-submit to clear this note.</p>
+            </div>
+          </div>
+        )}
+
         {sheet && (
           <div className="bg-white border border-slate-200 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
@@ -189,23 +207,7 @@ export default function SheetDetail() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {goals.map((g) => (
-                <li key={g.id} className="py-3 flex items-center justify-between gap-4">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-                      <Target size={18} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{g.title}</p>
-                      <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                        <span>UOM: {g.uom} &middot; Target: {g.target}</span>
-                        <IdChip id={g.id} label="Goal" />
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                    {g.weight}%
-                  </span>
-                </li>
+                <GoalRow key={g.id} goal={g} isDraft={isDraft} onChange={load} />
               ))}
             </ul>
           )}
@@ -319,5 +321,100 @@ export default function SheetDetail() {
         )}
       </main>
     </div>
+  );
+}
+
+function GoalRow({ goal, isDraft, onChange }) {
+  const shared = !!goal.source_goal_id;
+  const [editing, setEditing] = useState(false);
+  const [weight, setWeight] = useState(goal.weight);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function save() {
+    setBusy(true);
+    setErr("");
+    try {
+      await api(`/goals/${goal.id}/weight`, { method: "PATCH", body: { weight: Number(weight) } });
+      setEditing(false);
+      onChange();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="py-3">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className={`p-2 rounded-lg shrink-0 ${shared ? "bg-amber-50 text-amber-700" : "bg-indigo-50 text-indigo-600"}`}>
+            {shared ? <Share2 size={18} /> : <Target size={18} />}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-medium text-slate-900 truncate">{goal.title}</p>
+              {shared && (
+                <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                  Shared
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>UOM: {goal.uom} &middot; Target: {goal.target}</span>
+              <IdChip id={goal.id} label="Goal" />
+            </div>
+            {shared && (
+              <p className="text-[11px] text-amber-700 mt-1">
+                Cascaded goal — title and target are locked. Actuals come from the primary owner.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {editing ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="number"
+              min={10}
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              className="w-20 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              onClick={save}
+              disabled={busy}
+              className="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-60"
+              title="Save weight"
+            >
+              <Check size={14} />
+            </button>
+            <button
+              onClick={() => { setEditing(false); setWeight(goal.weight); setErr(""); }}
+              className="text-xs text-slate-500 hover:text-slate-700 px-2"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            disabled={!isDraft}
+            onClick={() => setEditing(true)}
+            title={isDraft ? "Click to edit weight" : "Weight can only be changed while Draft"}
+            className={`text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded ${
+              isDraft ? "hover:bg-indigo-100 hover:text-indigo-700 cursor-pointer" : "cursor-default"
+            }`}
+          >
+            {goal.weight}%
+          </button>
+        )}
+      </div>
+      {err && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1 mt-1">
+          {err}
+        </p>
+      )}
+    </li>
   );
 }

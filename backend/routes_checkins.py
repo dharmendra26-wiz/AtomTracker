@@ -71,6 +71,8 @@ class GoalProgress(BaseModel):
     weight: int
     score: float
     checkins: List[CheckInOut]
+    source_goal_id: Optional[str] = None
+    is_shared: bool = False
 
 
 class SheetProgress(BaseModel):
@@ -79,6 +81,7 @@ class SheetProgress(BaseModel):
     status: SheetStatus
     overall_score: float
     goals: List[GoalProgress]
+    reject_comment: Optional[str] = None
 
 
 # -------------------- Employee: log check-in --------------------
@@ -93,6 +96,12 @@ def log_checkin(
     goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not goal:
         raise HTTPException(404, "Goal not found")
+
+    if goal.source_goal_id is not None:
+        raise HTTPException(
+            400,
+            "This is a shared goal copy. Actuals are owned by the primary owner and will sync automatically.",
+        )
 
     sheet = db.query(GoalSheet).filter(GoalSheet.id == goal.sheet_id).first()
     if sheet.user_id != user.id:
@@ -190,7 +199,9 @@ def sheet_progress(
     total_weight = 0
 
     for goal in sheet.goals:
-        ckins_sorted = sorted(goal.checkins, key=lambda c: _QTR_ORDER[c.qtr])
+        # Shared copies read their check-ins from the primary goal.
+        effective = goal.source if goal.source_goal_id else goal
+        ckins_sorted = sorted(effective.checkins, key=lambda c: _QTR_ORDER[c.qtr])
         latest = ckins_sorted[-1] if ckins_sorted else None
 
         if latest and latest.actual is not None:
@@ -209,6 +220,8 @@ def sheet_progress(
             weight=goal.weight,
             score=round(score, 2),
             checkins=ckins_sorted,
+            source_goal_id=goal.source_goal_id,
+            is_shared=goal.is_shared,
         ))
 
     overall = round(weighted_sum / total_weight, 2) if total_weight else 0.0
@@ -219,4 +232,5 @@ def sheet_progress(
         status=sheet.status,
         overall_score=overall,
         goals=goals_out,
+        reject_comment=sheet.reject_comment,
     )
