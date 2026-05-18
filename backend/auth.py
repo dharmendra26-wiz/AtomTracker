@@ -14,7 +14,10 @@ SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me-in-production-please-x")
 ALGO = "HS256"
 TOKEN_HOURS = 12
 
-bearer = HTTPBearer()
+# auto_error=False: do NOT raise 403 when Authorization header is absent.
+# This prevents OPTIONS preflight requests (which have no auth header) from
+# being rejected before the CORS middleware can attach its response headers.
+bearer = HTTPBearer(auto_error=False)
 
 
 def hash_pw(pw: str) -> str:
@@ -41,6 +44,11 @@ def get_curr_user(
     creds: HTTPAuthorizationCredentials = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> User:
+    # When auto_error=False, creds is None if the Authorization header is missing.
+    # This happens during CORS preflight (OPTIONS). Raise 401 manually so the
+    # CORS middleware still gets a chance to add its headers to the response.
+    if creds is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
     try:
         payload = jwt.decode(creds.credentials, SECRET, algorithms=[ALGO])
         user_id = payload.get("sub")
