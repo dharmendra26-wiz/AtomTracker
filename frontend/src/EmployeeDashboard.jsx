@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileText, Plus, TrendingUp, Clock, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { api } from "./api";
@@ -44,14 +44,27 @@ export default function EmployeeDashboard() {
   const [err, setErr]         = useState("");
   const [year, setYear]       = useState(String(new Date().getFullYear()));
   const [creating, setCreating] = useState(false);
+  const retryTimer = useRef(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true); setErr("");
-    try { setSheets(await api("/my-sheets")); }
-    catch (e) { setErr(e.message); }
-    finally { setLoading(false); }
-  }
-  useEffect(() => { load(); }, []);
+    try {
+      setSheets(await api("/my-sheets"));
+      // Clear any pending retry on success
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    } catch (e) {
+      setErr(e.message);
+      // Auto-retry after 15s if it's a connectivity error
+      if (e.message.includes("reach") || e.message.includes("fetch")) {
+        retryTimer.current = setTimeout(() => load(), 15000);
+      }
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    load();
+    return () => { if (retryTimer.current) clearTimeout(retryTimer.current); };
+  }, [load]);
 
   async function createSheet(e) {
     e.preventDefault();
@@ -118,7 +131,15 @@ export default function EmployeeDashboard() {
         })}
       </div>
 
-      {err && <div className="alert alert-err mb-6"><AlertCircle size={16} />{err}</div>}
+      {err && (
+        <div className="alert alert-err mb-6">
+          <AlertCircle size={16} className="shrink-0" />
+          <div className="flex-1">
+            <span>{err}</span>
+          </div>
+          <button onClick={load} className="btn btn-ghost text-xs ml-2 shrink-0">Retry</button>
+        </div>
+      )}
 
       {/* Sheets list */}
       <div>

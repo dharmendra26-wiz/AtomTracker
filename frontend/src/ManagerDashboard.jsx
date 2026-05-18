@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, ClipboardList, TrendingUp, Clock, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { api } from "./api";
@@ -19,25 +19,38 @@ export default function ManagerDashboard() {
   const [stats,  setStats]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr]         = useState("");
+  const retryTimer = useRef(null);
+
+  function loadAll() {
+    let alive = true;
+    setLoading(true); setErr("");
+    Promise.all([
+      api("/team-sheets"),
+      api("/team-analytics").catch(() => null),
+    ])
+      .then(([s, t]) => {
+        if (!alive) return;
+        setSheets(s); setStats(t);
+        if (retryTimer.current) clearTimeout(retryTimer.current);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setErr(e.message);
+        if (e.message.includes("reach") || e.message.includes("fetch")) {
+          retryTimer.current = setTimeout(loadAll, 15000);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const [s, t] = await Promise.all([
-          api("/team-sheets"),
-          api("/team-analytics").catch(() => null),
-        ]);
-        if (!alive) return;
-        setSheets(s);
-        setStats(t);
-      } catch (e) {
-        if (alive) setErr(e.message);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
+    const cleanup = loadAll();
+    return () => {
+      cleanup && cleanup();
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function openSheet(s) {
@@ -106,7 +119,13 @@ export default function ManagerDashboard() {
         </div>
       )}
 
-      {err && <div className="alert alert-err mb-4"><AlertCircle size={16}/>{err}</div>}
+      {err && (
+        <div className="alert alert-err mb-4">
+          <AlertCircle size={16} className="shrink-0"/>
+          <div className="flex-1"><span>{err}</span></div>
+          <button onClick={loadAll} className="btn btn-ghost text-xs ml-2 shrink-0">Retry</button>
+        </div>
+      )}
 
       {/* Sheets */}
       <div className="flex items-center justify-between mb-4">

@@ -1,9 +1,12 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { useEffect, useState, useRef } from "react";
 import {
   LayoutDashboard, FileText, CheckSquare, Users, Settings,
-  LogOut, ShieldCheck, BarChart2, UserCog, ClipboardList,
+  LogOut, ShieldCheck, BarChart2, UserCog, ClipboardList, Wifi, WifiOff,
 } from "lucide-react";
+
+const BASE = import.meta.env.VITE_API_URL || "https://atomtracker.onrender.com";
 
 const NAV = {
   Employee: [
@@ -30,6 +33,34 @@ const ROLE_BADGE = {
   Admin:    "badge badge-admin",
 };
 
+function useServerStatus() {
+  const [status, setStatus] = useState("unknown"); // unknown | up | down
+  const timer = useRef(null);
+
+  function ping() {
+    fetch(`${BASE}/`, { signal: AbortSignal.timeout(8000) })
+      .then(() => { setStatus("up"); if (timer.current) clearInterval(timer.current); })
+      .catch(() => {
+        setStatus("down");
+        // Keep polling every 10s until it's back
+        if (!timer.current) {
+          timer.current = setInterval(() => {
+            fetch(`${BASE}/`, { signal: AbortSignal.timeout(8000) })
+              .then(() => { setStatus("up"); clearInterval(timer.current); timer.current = null; })
+              .catch(() => setStatus("down"));
+          }, 10000);
+        }
+      });
+  }
+
+  useEffect(() => {
+    ping();
+    return () => { if (timer.current) clearInterval(timer.current); };
+  }, []);
+
+  return status;
+}
+
 function Avatar({ name }) {
   const initials = name
     ? name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
@@ -48,6 +79,7 @@ export default function Layout({ children, title, actions }) {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   const links = NAV[user?.role] || [];
+  const serverStatus = useServerStatus();
 
   function signOut() {
     logout();
@@ -110,6 +142,25 @@ export default function Layout({ children, title, actions }) {
 
       {/* ── Main content ── */}
       <div className="main-area flex flex-col">
+        {/* Server wakeup banner */}
+        {serverStatus === "down" && (
+          <div className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium"
+            style={{ background:"#fef3c7", color:"#92400e", borderBottom:"1px solid #fde68a" }}>
+            <WifiOff size={15} className="shrink-0" />
+            <span>Server is waking up — requests will auto-retry. This takes ~30 s on first load.</span>
+            <div className="ml-auto flex items-center gap-1.5 text-xs opacity-70">
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-400" style={{ animation:"pulse-dot 1.2s ease infinite" }} />
+              Connecting…
+            </div>
+          </div>
+        )}
+        {serverStatus === "up" && (
+          <div className="flex items-center gap-2 px-6 py-2 text-xs font-medium animate-fade-in"
+            style={{ background:"#f0fdf4", color:"#166534", borderBottom:"1px solid #bbf7d0" }}>
+            <Wifi size={13} className="shrink-0" />
+            Server is online ✓
+          </div>
+        )}
         {/* Page header */}
         {title && (
           <header className="page-header">
