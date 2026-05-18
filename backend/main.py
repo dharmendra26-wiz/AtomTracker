@@ -16,11 +16,7 @@ app = FastAPI(title="AtomTracker")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://atom-tracker.rust.vercel.app",
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
