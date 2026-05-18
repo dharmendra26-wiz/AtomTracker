@@ -103,3 +103,74 @@ FastAPI · SQLAlchemy 2 · PyJWT · bcrypt · React 19 · Vite 8 · Tailwind v4 
 The hackathon asks for one PDF with live link, repository, and architecture. Regenerate **`SUBMISSION.pdf`** at the repo root with:
 
 `python scripts/generate_submission_pdf.py` (requires `pip install reportlab pillow`, e.g. in `backend/venv`).
+
+---
+
+## 4. Live Demo Screenshots
+
+All screenshots taken from the live production deployment at **https://atom-tracker-rust.vercel.app**
+
+### 👤 Employee Role
+
+**Dashboard** — KPI cards show total sheets, draft/submitted/locked counts at a glance.
+
+![Employee Dashboard](./docs/screenshots/01_employee_dashboard.png)
+
+---
+
+**New Sheet Created** — Employee created a FY 2027 goal sheet (Draft status).
+
+![New Sheet Card](./docs/screenshots/02_new_sheet.png)
+
+---
+
+**Adding Goals** — Goal 1 "Increase Monthly Revenue by 20%" added (40% weight, UoM: Min, Target: 120). Weight bar shows 40/100.
+
+![Goal 1 Added](./docs/screenshots/03_goal_1_added.png)
+
+---
+
+**Goal 2 Added** — "Reduce Customer TAT to under 48 hrs" (30% weight, UoM: Max). Weight bar at 70/100.
+
+![Goal 2 Added](./docs/screenshots/04_goal_2_added.png)
+
+---
+
+**All 3 Goals — Weight = 100/100** — "Zero Safety Incidents in FY2026" (30% weight, UoM: Zero) added. The green weight bar confirms exactly 100% — Submit button is now enabled.
+
+![All Goals 100% Weight](./docs/screenshots/05_all_goals_100pct.png)
+
+---
+
+**Sheet Submitted** — Status changed to SUBMITTED. Sheet is now locked from editing and awaiting manager review.
+
+![Sheet Submitted](./docs/screenshots/06_sheet_submitted.png)
+
+---
+
+### 👥 Manager Role
+
+**Manager Dashboard** — Shows team members' goal sheets (FY 2026 Locked + FY 2027 Submitted), team achievement scores bar chart, and score summaries.
+
+![Manager Dashboard](./docs/screenshots/07_manager_dashboard.png)
+
+---
+
+**Manager Review Page** — Manager sees the employee's 3 goals in a structured table (Goal | UoM | Target | Weight) before deciding to approve or reject.
+
+![Manager Review](./docs/screenshots/08_manager_review.png)
+
+---
+
+**Sheet Approved & Locked** — Manager clicked "Approve & Lock". Status changed to LOCKED (green badge). Goals are now frozen — quarterly check-ins can begin.
+
+![Manager Approved](./docs/screenshots/09_manager_approved.png)
+
+---
+
+### 🛡️ Admin / HR Role
+
+**Admin Console** — Full org-wide overview: 3 users, 2 sheets, 5 goals. Includes Users-by-Role donut chart, Sheets-by-Status bar chart, QoQ Average Score line chart, and Check-in Completion per quarter.
+
+![Admin Console Overview](./docs/screenshots/10_admin_overview.png)
+
