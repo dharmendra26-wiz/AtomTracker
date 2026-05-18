@@ -191,11 +191,20 @@ def team_analytics(
             continue
         weighted_sum = 0.0
         total_weight = 0
+        qtr_order = ["Q1", "Q2", "Q3", "Q4"]
         for goal in sheet.goals:
-            effective = goal.source if goal.source_goal_id else goal
-            ckins = sorted(effective.checkins, key=lambda c: c.qtr.value)
+            # Guard: source may be None if the primary goal was deleted
+            effective = (goal.source or goal) if goal.source_goal_id else goal
+            ckins = sorted(
+                effective.checkins,
+                key=lambda c: qtr_order.index(c.qtr.value) if c.qtr.value in qtr_order else 99,
+            )
             latest = ckins[-1] if ckins else None
-            score = compute_score(goal.uom.value, goal.target, latest.actual) if (latest and latest.actual is not None) else 0.0
+            score = (
+                compute_score(goal.uom.value, goal.target, latest.actual)
+                if (latest and latest.actual is not None)
+                else 0.0
+            )
             weighted_sum += score * goal.weight
             total_weight += goal.weight
         overall = round(weighted_sum / total_weight, 2) if total_weight else 0.0

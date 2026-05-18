@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, Zap, Wifi } from "lucide-react";
 
+const BASE = import.meta.env.VITE_API_URL || "https://atomtracker.onrender.com";
 const ROLE_HOME = { Employee: "/employee", Manager: "/manager", Admin: "/admin" };
 
 const DEMOS = [
@@ -21,6 +22,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy]         = useState(false);
   const [err, setErr]           = useState("");
+
+  const [warm, setWarm] = useState(false);
+  const [warming, setWarming] = useState(true);
+
+  // Ping backend on mount so Render wakes up before the user clicks login
+  useEffect(() => {
+    setWarming(true);
+    fetch(`${BASE}/`)
+      .then(() => setWarm(true))
+      .catch(() => setWarm(false))
+      .finally(() => setWarming(false));
+  }, []);
 
   if (user) return <Navigate to={ROLE_HOME[user.role] || "/employee"} replace />;
 
@@ -94,6 +107,13 @@ export default function LoginPage() {
 
             <h1 className="text-2xl font-bold text-slate-900 mb-1">Welcome back</h1>
             <p className="text-slate-500 text-sm mb-6">Sign in to continue to your dashboard</p>
+
+            {warming && (
+              <div className="alert alert-info mb-4 animate-fade-in">
+                <Wifi size={15} className="shrink-0" />
+                <span>Waking up the server… first load may take ~30 s.</span>
+              </div>
+            )}
 
             {err && (
               <div className="alert alert-err mb-4 animate-fade-in">
