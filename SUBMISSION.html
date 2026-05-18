@@ -8,10 +8,16 @@
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Inter',sans-serif;color:#1e293b;background:#fff;font-size:13px;line-height:1.6}
   @media print{
-    .no-print{display:none}
+    .no-print{display:none!important}
     body{font-size:11px}
     .page-break{page-break-before:always}
     section{page-break-inside:avoid}
+    /* Preserve hyperlinks as clickable in PDF */
+    a[href]{color:inherit!important;text-decoration:underline!important}
+    a.cover-link{text-decoration:none!important;border:1px solid rgba(255,255,255,0.4)!important}
+    a.link-card{text-decoration:none!important}
+    /* Show full URL after inline links */
+    .show-url::after{content:" (" attr(href) ")";font-size:9px;color:#6366f1}
   }
 
   /* Cover */
@@ -21,7 +27,8 @@
   .cover h1 span{color:#a5b4fc}
   .cover-sub{font-size:17px;color:#c7d2fe;max-width:600px;margin-bottom:48px}
   .cover-links{display:flex;flex-direction:column;gap:10px;margin-bottom:48px}
-  .cover-link{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px 20px;text-decoration:none;color:#fff}
+  .cover-link{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px 20px;text-decoration:none;color:#fff;cursor:pointer}
+  .cover-link:hover{background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.4)}
   .cover-link-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#a5b4fc;display:block}
   .cover-link-url{font-size:13px;font-weight:500}
   .cover-meta{display:flex;gap:32px;border-top:1px solid rgba(255,255,255,0.15);padding-top:32px;margin-top:auto}
@@ -84,6 +91,11 @@
 </head>
 <body>
 
+<!-- PRINT HINT BAR -->
+<div class="no-print" style="background:#4f46e5;color:#fff;text-align:center;padding:12px 20px;font-size:12px;font-weight:600;position:sticky;top:0;z-index:100">
+  📄 To save as PDF: Press <kbd style="background:rgba(255,255,255,0.2);border-radius:4px;padding:2px 7px">Ctrl+P</kbd> → Destination: <strong>Save as PDF</strong> → Enable <strong>Background graphics</strong> → Save &nbsp;|&nbsp; All links will be clickable in the PDF ✓
+</div>
+
 <!-- ═══════════════════ COVER PAGE ═══════════════════ -->
 <div class="cover">
   <div class="cover-tag">Atomquest Hackathon 1.0 — Submission</div>
@@ -91,21 +103,21 @@
   <p class="cover-sub">In-House Goal Setting &amp; Tracking Portal — replaces fragile Excel sheets with strict 100% weight enforcement, quarterly scoring, JWT-based RBAC, and a tamper-evident audit trail.</p>
 
   <div class="cover-links">
-    <a href="https://atom-tracker-rust.vercel.app" class="cover-link">
+    <a href="https://atom-tracker-rust.vercel.app" target="_blank" class="cover-link">
       <div style="font-size:22px">🌐</div>
       <div>
         <span class="cover-link-label">Live Working Link</span>
         <span class="cover-link-url">https://atom-tracker-rust.vercel.app</span>
       </div>
     </a>
-    <a href="https://github.com/dharmendra26-wiz/AtomTracker" class="cover-link">
+    <a href="https://github.com/dharmendra26-wiz/AtomTracker" target="_blank" class="cover-link">
       <div style="font-size:22px">📦</div>
       <div>
         <span class="cover-link-label">Source Code Repository (GitHub)</span>
         <span class="cover-link-url">https://github.com/dharmendra26-wiz/AtomTracker</span>
       </div>
     </a>
-    <a href="https://atomtracker.onrender.com/docs" class="cover-link">
+    <a href="https://atomtracker.onrender.com/docs" target="_blank" class="cover-link">
       <div style="font-size:22px">📄</div>
       <div>
         <span class="cover-link-label">API Documentation (Swagger UI)</span>
@@ -129,15 +141,15 @@
   <!-- 1. LINKS -->
   <h2><span class="h-num">1</span> Live Links &amp; Repository</h2>
 
-  <a href="https://atom-tracker-rust.vercel.app" class="link-card">
+  <a href="https://atom-tracker-rust.vercel.app" target="_blank" class="link-card">
     <div class="link-icon">🌐</div>
     <div><div class="lbl">Frontend — Live Working Link</div><div class="url">https://atom-tracker-rust.vercel.app</div></div>
   </a>
-  <a href="https://github.com/dharmendra26-wiz/AtomTracker" class="link-card">
+  <a href="https://github.com/dharmendra26-wiz/AtomTracker" target="_blank" class="link-card">
     <div class="link-icon">GH</div>
     <div><div class="lbl">Source Code Repository (GitHub)</div><div class="url">https://github.com/dharmendra26-wiz/AtomTracker</div></div>
   </a>
-  <a href="https://atomtracker.onrender.com" class="link-card">
+  <a href="https://atomtracker.onrender.com" target="_blank" class="link-card">
     <div class="link-icon">⚡</div>
     <div><div class="lbl">Backend API — FastAPI on Render</div><div class="url">https://atomtracker.onrender.com</div></div>
   </a>
@@ -349,10 +361,11 @@ atomtracker/
   <div style="margin-top:48px;padding-top:24px;border-top:2px solid #e0e7ff;text-align:center;color:#94a3b8;font-size:11px">
     <strong style="color:#4f46e5;font-size:14px">AtomTracker</strong> &nbsp;·&nbsp; Atomquest Hackathon 1.0 &nbsp;·&nbsp; Built by Dharmendra
     <br><br>
-    <a href="https://atom-tracker-rust.vercel.app" style="color:#6366f1">atom-tracker-rust.vercel.app</a>
+    <a href="https://atom-tracker-rust.vercel.app" target="_blank" style="color:#6366f1">atom-tracker-rust.vercel.app</a>
     &nbsp;·&nbsp;
-    <a href="https://github.com/dharmendra26-wiz/AtomTracker" style="color:#6366f1">github.com/dharmendra26-wiz/AtomTracker</a>
+    <a href="https://github.com/dharmendra26-wiz/AtomTracker" target="_blank" style="color:#6366f1">github.com/dharmendra26-wiz/AtomTracker</a>
   </div>
+
 
 </div>
 </body>
