@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 DB_URL = "sqlite:///./atomtracker.db"
@@ -19,3 +19,25 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def run_migrations():
+    """Add any missing columns to the existing SQLite database.
+
+    SQLAlchemy's create_all() only creates missing *tables*, not missing
+    *columns* in existing tables. We run these ALTER TABLE statements on every
+    startup; SQLite raises OperationalError if the column already exists, which
+    we intentionally swallow.
+    """
+    migrations = [
+        "ALTER TABLE sheets ADD COLUMN reject_comment VARCHAR",
+        "ALTER TABLE goals  ADD COLUMN source_goal_id VARCHAR REFERENCES goals(id)",
+        "ALTER TABLE checkins ADD COLUMN mgr_comment VARCHAR",
+    ]
+    with engine.connect() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists — safe to ignore

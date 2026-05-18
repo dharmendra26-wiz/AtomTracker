@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import Base, engine, get_db
+from database import Base, engine, get_db, run_migrations
 from models import User, Role
 from auth import hash_pw, verify_pw, create_token
 from routes_goals import router as goals_router
@@ -11,6 +11,7 @@ from routes_checkins import router as checkins_router
 from routes_admin import router as admin_router
 
 Base.metadata.create_all(bind=engine)
+run_migrations()  # safely add any missing columns to the existing DB
 
 app = FastAPI(title="AtomTracker")
 
