@@ -29,7 +29,10 @@ export default function LoginPage() {
   // Ping backend on mount so Render wakes up before the user clicks login
   useEffect(() => {
     setWarming(true);
-    fetch(`${BASE}/`)
+    // no-cors ping first to bypass preflight and force dyno awake
+    fetch(`${BASE}/`, { method: "GET", mode: "no-cors" }).catch(() => {});
+    // credentialed ping with long timeout to detect when it's truly up
+    fetch(`${BASE}/`, { signal: AbortSignal.timeout(35000) })
       .then(() => setWarm(true))
       .catch(() => setWarm(false))
       .finally(() => setWarming(false));

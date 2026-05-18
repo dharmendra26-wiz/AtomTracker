@@ -37,18 +37,21 @@ function useServerStatus() {
   const [status, setStatus] = useState("unknown"); // unknown | up | down
   const timer = useRef(null);
 
-  function ping() {
-    fetch(`${BASE}/`, { signal: AbortSignal.timeout(8000) })
+  async function ping() {
+    // First fire a no-cors ping to wake the Render dyno (bypasses preflight)
+    try { await fetch(`${BASE}/`, { method: "GET", mode: "no-cors" }); } catch { /* ignore */ }
+    // Now check with a real request (35 s timeout — Render cold-start ≤ 30 s)
+    fetch(`${BASE}/`, { signal: AbortSignal.timeout(35000) })
       .then(() => { setStatus("up"); if (timer.current) clearInterval(timer.current); })
       .catch(() => {
         setStatus("down");
-        // Keep polling every 10s until it's back
+        // Keep polling every 15s until it's back
         if (!timer.current) {
           timer.current = setInterval(() => {
-            fetch(`${BASE}/`, { signal: AbortSignal.timeout(8000) })
+            fetch(`${BASE}/`, { signal: AbortSignal.timeout(35000) })
               .then(() => { setStatus("up"); clearInterval(timer.current); timer.current = null; })
               .catch(() => setStatus("down"));
-          }, 10000);
+          }, 15000);
         }
       });
   }

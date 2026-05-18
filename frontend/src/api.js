@@ -4,9 +4,33 @@ function getToken() {
   return localStorage.getItem("token");
 }
 
+/** Returns true for any network-level failure (server asleep, CORS preflight timeout, etc.) */
+function isNetworkError(err) {
+  return (
+    err instanceof TypeError ||
+    (err instanceof Error && (
+      err.message.includes("fetch") ||
+      err.message.includes("network") ||
+      err.message.includes("Network") ||
+      err.message.includes("Failed to fetch") ||
+      err.message.includes("Load failed")
+    ))
+  );
+}
+
+/** Fire-and-forget no-cors ping to wake up the Render dyno.
+ *  no-cors skips the preflight so it reaches the server even when sleeping. */
+async function warmUp() {
+  try {
+    await fetch(`${BASE}/`, { method: "GET", mode: "no-cors" });
+  } catch {
+    // Ignore — this is just a warm-up
+  }
+}
+
 /**
- * Core fetch wrapper with 1 automatic retry after 3 s on network failure
- * (handles Render free-tier cold-start ~30 s sleep gracefully).
+ * Core fetch wrapper with automatic retries for Render free-tier cold-starts.
+ * Retries up to 3 times with 10 s gaps (≈ 30 s total) — matching Render wake-up time.
  */
 export async function api(path, { method = "GET", body, auth = true } = {}) {
   const headers = { "Content-Type": "application/json" };
@@ -33,27 +57,32 @@ export async function api(path, { method = "GET", body, auth = true } = {}) {
     return data;
   }
 
-  // First attempt
-  try {
-    return await attempt();
-  } catch (err) {
-    // On network errors (backend sleeping / CORS preflight timeout), retry once after 3 s
-    const isNetworkError = err instanceof TypeError && err.message.includes("fetch");
-    if (isNetworkError) {
-      await new Promise((r) => setTimeout(r, 3000));
-      try {
-        return await attempt();
-      } catch (retryErr) {
-        // Give a friendlier message on repeated network failure
-        if (retryErr instanceof TypeError && retryErr.message.includes("fetch")) {
-          throw new Error(
-            "Cannot reach the server. The backend may be waking up — please wait 30 s and try again."
-          );
-        }
-        throw retryErr;
+  // Attempt with up to 3 retries on network failure (cold-start)
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 10_000; // 10 s — matches Render wake-up time
+
+  for (let i = 0; i <= MAX_RETRIES; i++) {
+    try {
+      return await attempt();
+    } catch (err) {
+      const isLast = i === MAX_RETRIES;
+
+      if (isNetworkError(err) && !isLast) {
+        // Fire a no-cors ping to wake the dyno, then wait before retrying
+        warmUp();
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        continue;
       }
+
+      // On last retry or non-network error, surface a clear message
+      if (isNetworkError(err)) {
+        throw new Error(
+          "Cannot reach the server. The backend may be waking up — please wait 30 s and try again."
+        );
+      }
+
+      throw err;
     }
-    throw err;
   }
 }
 
