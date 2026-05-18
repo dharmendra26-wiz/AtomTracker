@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>AtomTracker — Hackathon Submission</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;color:#1e293b;background:#fff;font-size:13px;line-height:1.6}
+  @media print{
+    .no-print{display:none}
+    body{font-size:11px}
+    .page-break{page-break-before:always}
+    section{page-break-inside:avoid}
+  }
+
+  /* Cover */
+  .cover{background:linear-gradient(135deg,#1e1b4b 0%,#312e81 40%,#4f46e5 100%);color:#fff;padding:72px 64px;min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+  .cover-tag{display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:100px;padding:6px 18px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:32px}
+  .cover h1{font-size:52px;font-weight:900;line-height:1.1;margin-bottom:16px}
+  .cover h1 span{color:#a5b4fc}
+  .cover-sub{font-size:17px;color:#c7d2fe;max-width:600px;margin-bottom:48px}
+  .cover-links{display:flex;flex-direction:column;gap:10px;margin-bottom:48px}
+  .cover-link{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px 20px;text-decoration:none;color:#fff}
+  .cover-link-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#a5b4fc;display:block}
+  .cover-link-url{font-size:13px;font-weight:500}
+  .cover-meta{display:flex;gap:32px;border-top:1px solid rgba(255,255,255,0.15);padding-top:32px;margin-top:auto}
+  .cover-meta-item{text-align:left}
+  .cover-meta-item .num{font-size:28px;font-weight:900;color:#a5b4fc}
+  .cover-meta-item .lbl{font-size:11px;color:#c7d2fe;margin-top:2px}
+  .badge-role{display:inline-block;padding:3px 10px;border-radius:100px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .badge-emp{background:#ede9fe;color:#5b21b6}
+  .badge-mgr{background:#fef3c7;color:#92400e}
+  .badge-adm{background:#d1fae5;color:#065f46}
+
+  /* Content */
+  .content{max-width:860px;margin:0 auto;padding:56px 40px}
+  h2{font-size:22px;font-weight:800;color:#1e1b4b;margin-bottom:6px;padding-top:40px;border-top:2px solid #e0e7ff;margin-top:40px}
+  h2:first-child{margin-top:0;padding-top:0;border-top:none}
+  h2 .h-num{display:inline-block;background:#4f46e5;color:#fff;border-radius:8px;padding:2px 10px;font-size:12px;margin-right:10px}
+  h3{font-size:15px;font-weight:700;color:#312e81;margin:24px 0 10px}
+  p{margin-bottom:10px;color:#334155}
+
+  /* Links */
+  .link-card{display:flex;align-items:center;gap:14px;background:#f8f7ff;border:1.5px solid #e0e7ff;border-radius:12px;padding:16px 20px;margin-bottom:10px;text-decoration:none;color:#1e1b4b}
+  .link-card:hover{background:#ede9fe}
+  .link-icon{width:36px;height:36px;border-radius:10px;background:#4f46e5;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;flex-shrink:0}
+  .link-card .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6366f1}
+  .link-card .url{font-size:13px;font-weight:600;color:#1e1b4b}
+
+  /* Table */
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:12px}
+  th{background:#f1f0ff;color:#3730a3;font-weight:700;text-align:left;padding:10px 14px;border-bottom:2px solid #e0e7ff}
+  td{padding:9px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .check{color:#059669;font-weight:700}
+
+  /* Feature grid */
+  .feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+  .feature-card{border:1.5px solid #e0e7ff;border-radius:12px;padding:16px;background:#fafbff}
+  .feature-card h4{font-size:13px;font-weight:700;color:#312e81;margin-bottom:6px}
+  .feature-card p{font-size:11px;color:#475569;margin:0}
+
+  /* Screenshot grid */
+  .ss-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+  .ss-card{border-radius:12px;overflow:hidden;border:1px solid #e0e7ff}
+  .ss-card img{width:100%;display:block}
+  .ss-caption{padding:8px 12px;font-size:10px;font-weight:600;color:#4f46e5;background:#f8f7ff}
+
+  /* Architecture */
+  .arch-img{width:100%;border-radius:16px;border:1.5px solid #e0e7ff;margin:16px 0}
+
+  /* Stack badges */
+  .stack{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .stack-badge{background:#f1f0ff;color:#4338ca;border:1px solid #e0e7ff;border-radius:8px;padding:4px 12px;font-size:11px;font-weight:600}
+
+  /* Credentials box */
+  .cred-box{background:#f8f7ff;border:1.5px solid #e0e7ff;border-radius:12px;padding:20px;margin:16px 0}
+  .cred-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .cred-row:last-child{margin-bottom:0}
+  .cred-label{font-size:10px;font-weight:700;text-transform:uppercase;color:#6366f1;width:80px;flex-shrink:0}
+  code{font-family:monospace;background:#ede9fe;color:#3730a3;padding:2px 7px;border-radius:5px;font-size:11px}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ COVER PAGE ═══════════════════ -->
+<div class="cover">
+  <div class="cover-tag">Atomquest Hackathon 1.0 — Submission</div>
+  <h1>Atom<span>Tracker</span></h1>
+  <p class="cover-sub">In-House Goal Setting &amp; Tracking Portal — replaces fragile Excel sheets with strict 100% weight enforcement, quarterly scoring, JWT-based RBAC, and a tamper-evident audit trail.</p>
+
+  <div class="cover-links">
+    <a href="https://atom-tracker-rust.vercel.app" class="cover-link">
+      <div style="font-size:22px">🌐</div>
+      <div>
+        <span class="cover-link-label">Live Working Link</span>
+        <span class="cover-link-url">https://atom-tracker-rust.vercel.app</span>
+      </div>
+    </a>
+    <a href="https://github.com/dharmendra26-wiz/AtomTracker" class="cover-link">
+      <div style="font-size:22px">📦</div>
+      <div>
+        <span class="cover-link-label">Source Code Repository (GitHub)</span>
+        <span class="cover-link-url">https://github.com/dharmendra26-wiz/AtomTracker</span>
+      </div>
+    </a>
+    <a href="https://atomtracker.onrender.com/docs" class="cover-link">
+      <div style="font-size:22px">📄</div>
+      <div>
+        <span class="cover-link-label">API Documentation (Swagger UI)</span>
+        <span class="cover-link-url">https://atomtracker.onrender.com/docs</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="cover-meta">
+    <div class="cover-meta-item"><div class="num">3</div><div class="lbl">User Roles</div></div>
+    <div class="cover-meta-item"><div class="num">4</div><div class="lbl">Quarters Tracked</div></div>
+    <div class="cover-meta-item"><div class="num">100%</div><div class="lbl">Weight Enforced</div></div>
+    <div class="cover-meta-item"><div class="num">8</div><div class="lbl">Goals per Sheet max</div></div>
+    <div class="cover-meta-item"><div class="num">∞</div><div class="lbl">Audit Trail</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CONTENT ═══════════════════ -->
+<div class="content">
+
+  <!-- 1. LINKS -->
+  <h2><span class="h-num">1</span> Live Links &amp; Repository</h2>
+
+  <a href="https://atom-tracker-rust.vercel.app" class="link-card">
+    <div class="link-icon">🌐</div>
+    <div><div class="lbl">Frontend — Live Working Link</div><div class="url">https://atom-tracker-rust.vercel.app</div></div>
+  </a>
+  <a href="https://github.com/dharmendra26-wiz/AtomTracker" class="link-card">
+    <div class="link-icon">GH</div>
+    <div><div class="lbl">Source Code Repository (GitHub)</div><div class="url">https://github.com/dharmendra26-wiz/AtomTracker</div></div>
+  </a>
+  <a href="https://atomtracker.onrender.com" class="link-card">
+    <div class="link-icon">⚡</div>
+    <div><div class="lbl">Backend API — FastAPI on Render</div><div class="url">https://atomtracker.onrender.com</div></div>
+  </a>
+
+  <p style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:11px;color:#78350f">
+    ⚠️ <strong>First load may take ~30 seconds.</strong> The backend runs on Render's free tier which sleeps after inactivity. The app automatically retries — just wait and it will come online.
+  </p>
+
+  <h3>Demo Login Credentials</h3>
+  <div class="cred-box">
+    <div class="cred-row"><span class="cred-label">Admin</span><code>admin@test.com</code>&nbsp;/&nbsp;<code>admin</code>&nbsp;&nbsp;<span class="badge-role badge-adm">Admin</span></div>
+    <div class="cred-row"><span class="cred-label">Manager</span><code>manager@test.com</code>&nbsp;/&nbsp;<code>manager</code>&nbsp;&nbsp;<span class="badge-role badge-mgr">Manager</span></div>
+    <div class="cred-row"><span class="cred-label">Employee</span><code>employee@test.com</code>&nbsp;/&nbsp;<code>employee</code>&nbsp;&nbsp;<span class="badge-role badge-emp">Employee</span></div>
+  </div>
+  <p style="font-size:11px;color:#475569">The login page also has <strong>one-click quick demo login buttons</strong> for each role. The Employee is pre-linked to the Manager so the full approve → check-in → feedback flow works immediately.</p>
+
+  <!-- 2. PROBLEM STATEMENT -->
+  <h2><span class="h-num">2</span> Problem Statement &amp; Solution</h2>
+  <p>Atomberg's goal-setting process relied on fragile Excel spreadsheets — inconsistent formats, no weight validation, no audit trail, and no way for managers to review or provide feedback digitally. The challenge was to build a structured, digital replacement.</p>
+
+  <h3>What AtomTracker Solves</h3>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h4>🎯 Structured Goal Setting</h4>
+      <p>Employees create annual goal sheets with up to 8 goals. Total weight is enforced at exactly 100% before submission. Supports Min/Max/Zero/Timeline UoMs with automatic scoring.</p>
+    </div>
+    <div class="feature-card">
+      <h4>✅ Manager Approval Workflow</h4>
+      <p>Managers review submitted sheets, can inline-edit target/weight before approving, approve &amp; lock them, or return with a comment for rework. Full round-trip in the UI.</p>
+    </div>
+    <div class="feature-card">
+      <h4>📊 Quarterly Check-ins</h4>
+      <p>Once locked, employees log Q1–Q4 actuals. Scores are computed automatically per UoM. Managers can add per-check-in feedback comments.</p>
+    </div>
+    <div class="feature-card">
+      <h4>🛡️ Tamper-Evident Audit Trail</h4>
+      <p>Every change (approve, reject, override, cascade, check-in) is recorded with old/new values, timestamp, and actor. Admin can search by any entity UUID.</p>
+    </div>
+    <div class="feature-card">
+      <h4>🔗 Shared / Cascaded Goals</h4>
+      <p>Admin can cascade a primary goal to multiple employees. Copies are read-only linked — actuals sync automatically from the primary owner. No duplicate data.</p>
+    </div>
+    <div class="feature-card">
+      <h4>📈 Analytics Dashboard</h4>
+      <p>Admin sees org-wide charts: users by role, sheets by status, QoQ average score trend, and per-employee quarter completion matrix. Exports to CSV.</p>
+    </div>
+  </div>
+
+  <!-- 3. ARCHITECTURE -->
+  <h2 class="page-break"><span class="h-num">3</span> Architecture Diagram</h2>
+  <img src="docs/architecture_diagram.png" class="arch-img" alt="System Architecture"/>
+
+  <h3>How It Works</h3>
+  <table>
+    <thead><tr><th>Layer</th><th>Technology</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Frontend</strong></td><td>React 19 + Vite 8 + Tailwind v4</td><td>SPA served from Vercel's global CDN</td></tr>
+      <tr><td><strong>Proxy</strong></td><td>Vercel Rewrites (<code>/api/*</code>)</td><td>Forwards API calls to Render server-side — eliminates CORS entirely</td></tr>
+      <tr><td><strong>Backend</strong></td><td>FastAPI + Uvicorn on Render</td><td>Stateless REST API with JWT auth and role-based access control</td></tr>
+      <tr><td><strong>Database</strong></td><td>SQLite via SQLAlchemy 2</td><td>Zero-config for hackathon; Postgres-ready via single env-var swap</td></tr>
+      <tr><td><strong>Auth</strong></td><td>PyJWT (HS256) + bcrypt</td><td>Signed 12-hour tokens; role enforced server-side on every request</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Key Architectural Decisions</h3>
+  <table>
+    <thead><tr><th>Decision</th><th>Rationale</th></tr></thead>
+    <tbody>
+      <tr><td>JWT in Authorization header</td><td>Stateless server, no CSRF surface, trivial cross-client usage</td></tr>
+      <tr><td>Vercel proxy <code>/api/*</code> → Render</td><td>Eliminates CORS preflight issues with Render's free-tier cold starts</td></tr>
+      <tr><td>Single <code>AuditLog</code> table with <code>(entity_type, entity_id)</code></td><td>One audit pattern for all entities — extensible with zero new migrations</td></tr>
+      <tr><td><code>source_goal_id</code> self-FK for cascaded goals</td><td>Single row of truth; copies proxy the primary's actuals automatically</td></tr>
+      <tr><td>Upsert check-ins on <code>(goal_id, quarter)</code></td><td>Latest actual wins; history preserved in audit trail</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 4. FEATURES vs BRD -->
+  <h2><span class="h-num">4</span> Feature Coverage</h2>
+  <table>
+    <thead><tr><th>Requirement</th><th>Status</th><th>Endpoint</th></tr></thead>
+    <tbody>
+      <tr><td>Three roles (Employee / Manager / Admin) with RBAC</td><td class="check">✅</td><td><code>auth.require_role</code></td></tr>
+      <tr><td>Up to 8 goals per sheet, min weight 10, total = 100</td><td class="check">✅</td><td><code>POST /sheets/{id}/goals</code>, <code>POST /sheets/{id}/submit</code></td></tr>
+      <tr><td>Manager approves and locks the sheet</td><td class="check">✅</td><td><code>POST /sheets/{id}/approve</code></td></tr>
+      <tr><td>Manager returns sheet for rework with a comment</td><td class="check">✅</td><td><code>POST /sheets/{id}/reject</code></td></tr>
+      <tr><td>Manager inline edits target/weight before approval</td><td class="check">✅</td><td><code>POST /goals/{id}/override</code></td></tr>
+      <tr><td>Quarterly check-ins with auto-computed scores per UoM</td><td class="check">✅</td><td><code>POST /goals/{id}/checkins</code></td></tr>
+      <tr><td>Manager comments on a specific check-in</td><td class="check">✅</td><td><code>POST /checkins/{id}/comment</code></td></tr>
+      <tr><td>Shared / cascaded goals (actuals sync)</td><td class="check">✅</td><td><code>POST /goals/{id}/cascade</code></td></tr>
+      <tr><td>Admin override of locked goals with audit trail</td><td class="check">✅</td><td><code>POST /goals/{id}/override</code></td></tr>
+      <tr><td>Completion dashboard (per-employee × quarter matrix)</td><td class="check">✅</td><td><code>GET /completion</code></td></tr>
+      <tr><td>Full audit trail (per entity + system-wide)</td><td class="check">✅</td><td><code>GET /audit-logs</code>, <code>GET /audit-logs/{id}</code></td></tr>
+      <tr><td>Achievement CSV export report</td><td class="check">✅</td><td><code>GET /reports/achievements.csv</code></td></tr>
+      <tr><td>Org analytics (users by role, sheets by status, QoQ trend)</td><td class="check">✅</td><td><code>GET /analytics</code>, <code>GET /analytics/qoq</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- 5. SCREENSHOTS -->
+  <h2 class="page-break"><span class="h-num">5</span> Live Demo Screenshots</h2>
+  <p style="font-size:11px;color:#475569;margin-bottom:16px">All screenshots taken from the live production deployment at <strong>https://atom-tracker-rust.vercel.app</strong></p>
+
+  <h3>👤 Employee Role</h3>
+  <div class="ss-grid">
+    <div class="ss-card">
+      <img src="docs/screenshots/01_employee_dashboard.png" alt="Employee Dashboard"/>
+      <div class="ss-caption">Dashboard — KPI cards with total/draft/submitted/locked counts</div>
+    </div>
+    <div class="ss-card">
+      <img src="docs/screenshots/05_all_goals_100pct.png" alt="All Goals 100% Weight"/>
+      <div class="ss-caption">Goal Sheet — 3 goals added, weight bar at 100/100 (green), Submit enabled</div>
+    </div>
+    <div class="ss-card">
+      <img src="docs/screenshots/06_sheet_submitted.png" alt="Sheet Submitted"/>
+      <div class="ss-caption">Sheet Submitted — status locked from editing, awaiting manager</div>
+    </div>
+    <div class="ss-card">
+      <img src="docs/screenshots/03_goal_1_added.png" alt="Adding a goal"/>
+      <div class="ss-caption">Adding a goal — Title, UoM, Target, Weight fields with live weight bar</div>
+    </div>
+  </div>
+
+  <h3>👥 Manager Role</h3>
+  <div class="ss-grid">
+    <div class="ss-card">
+      <img src="docs/screenshots/07_manager_dashboard.png" alt="Manager Dashboard"/>
+      <div class="ss-caption">Manager Console — team sheets, achievement score bar chart</div>
+    </div>
+    <div class="ss-card">
+      <img src="docs/screenshots/08_manager_review.png" alt="Manager Review"/>
+      <div class="ss-caption">Review Page — goals table with inline-editable Target & Weight</div>
+    </div>
+    <div class="ss-card">
+      <img src="docs/screenshots/09_manager_approved.png" alt="Approved & Locked"/>
+      <div class="ss-caption">Approved & Locked — LOCKED badge, goals frozen for check-ins</div>
+    </div>
+  </div>
+
+  <h3>🛡️ Admin / HR Role</h3>
+  <div class="ss-grid">
+    <div class="ss-card">
+      <img src="docs/screenshots/10_admin_overview.png" alt="Admin Console"/>
+      <div class="ss-caption">Admin Console — Users by Role donut, Sheets by Status bar, QoQ trend line, check-in completion %</div>
+    </div>
+    <div class="ss-card">
+      <img src="docs/screenshots/02_new_sheet.png" alt="New Sheet"/>
+      <div class="ss-caption">Employee dashboard after creating a new FY sheet</div>
+    </div>
+  </div>
+
+  <!-- 6. TECH STACK -->
+  <h2><span class="h-num">6</span> Tech Stack</h2>
+  <h3>Frontend</h3>
+  <div class="stack">
+    <span class="stack-badge">React 19</span>
+    <span class="stack-badge">Vite 8</span>
+    <span class="stack-badge">Tailwind CSS v4</span>
+    <span class="stack-badge">React Router v7</span>
+    <span class="stack-badge">Recharts</span>
+    <span class="stack-badge">lucide-react</span>
+    <span class="stack-badge">Vercel (hosting)</span>
+  </div>
+  <h3>Backend</h3>
+  <div class="stack">
+    <span class="stack-badge">FastAPI</span>
+    <span class="stack-badge">SQLAlchemy 2</span>
+    <span class="stack-badge">SQLite</span>
+    <span class="stack-badge">PyJWT (HS256)</span>
+    <span class="stack-badge">bcrypt</span>
+    <span class="stack-badge">Pydantic v2</span>
+    <span class="stack-badge">Uvicorn</span>
+    <span class="stack-badge">Render (hosting)</span>
+  </div>
+
+  <!-- 7. REPO STRUCTURE -->
+  <h2><span class="h-num">7</span> Repository Structure</h2>
+  <pre style="background:#f8f7ff;border:1.5px solid #e0e7ff;border-radius:12px;padding:20px;font-size:11px;line-height:1.8;overflow:auto">
+atomtracker/
+├── backend/
+│   ├── main.py           # FastAPI app, CORS, startup migration
+│   ├── auth.py           # JWT creation/validation, RBAC helpers
+│   ├── models.py         # SQLAlchemy models (User, GoalSheet, Goal, CheckIn, AuditLog)
+│   ├── database.py       # Engine, session, startup migrations
+│   ├── routes_goals.py   # /sheets, /goals, /checkins endpoints
+│   ├── routes_checkins.py# /completion, /team-analytics, progress
+│   └── routes_admin.py   # /users, /analytics, /audit-logs, /reports
+│
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx              # Routes (Protected, role-based)
+│   │   ├── Layout.jsx           # Sidebar, server status banner
+│   │   ├── LoginPage.jsx        # Auth + quick demo login
+│   │   ├── EmployeeDashboard.jsx
+│   │   ├── SheetDetail.jsx      # Add/edit/delete goals, submit
+│   │   ├── EmployeeCheckin.jsx  # Log quarterly actuals
+│   │   ├── ManagerDashboard.jsx
+│   │   ├── ManagerSheetDetail.jsx # Approve/reject/override
+│   │   ├── ManagerCheckin.jsx   # View actuals, add comments
+│   │   ├── AdminDashboard.jsx   # Analytics, audit, cascade
+│   │   ├── UserManagement.jsx   # CRUD users
+│   │   └── api.js               # Fetch wrapper with retry logic
+│   └── vercel.json              # SPA routing + /api/* proxy
+│
+└── docs/
+    ├── architecture_diagram.png
+    └── screenshots/             # 10 live demo screenshots
+  </pre>
+
+  <!-- Footer -->
+  <div style="margin-top:48px;padding-top:24px;border-top:2px solid #e0e7ff;text-align:center;color:#94a3b8;font-size:11px">
+    <strong style="color:#4f46e5;font-size:14px">AtomTracker</strong> &nbsp;·&nbsp; Atomquest Hackathon 1.0 &nbsp;·&nbsp; Built by Dharmendra
+    <br><br>
+    <a href="https://atom-tracker-rust.vercel.app" style="color:#6366f1">atom-tracker-rust.vercel.app</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/dharmendra26-wiz/AtomTracker" style="color:#6366f1">github.com/dharmendra26-wiz/AtomTracker</a>
+  </div>
+
+</div>
+</body>
+</html>
