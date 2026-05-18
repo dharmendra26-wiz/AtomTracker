@@ -6,7 +6,10 @@ import {
   LogOut, ShieldCheck, BarChart2, UserCog, ClipboardList, Wifi, WifiOff,
 } from "lucide-react";
 
-const BASE = import.meta.env.VITE_API_URL || "https://atomtracker.onrender.com";
+// In production, /api/* is proxied to Render by Vercel (same-origin = no CORS).
+// In local dev, VITE_API_URL points directly to localhost:8000.
+const BASE = import.meta.env.VITE_API_URL || "/api";
+
 
 const NAV = {
   Employee: [
@@ -37,15 +40,11 @@ function useServerStatus() {
   const [status, setStatus] = useState("unknown"); // unknown | up | down
   const timer = useRef(null);
 
-  async function ping() {
-    // First fire a no-cors ping to wake the Render dyno (bypasses preflight)
-    try { await fetch(`${BASE}/`, { method: "GET", mode: "no-cors" }); } catch { /* ignore */ }
-    // Now check with a real request (35 s timeout — Render cold-start ≤ 30 s)
+  function ping() {
     fetch(`${BASE}/`, { signal: AbortSignal.timeout(35000) })
       .then(() => { setStatus("up"); if (timer.current) clearInterval(timer.current); })
       .catch(() => {
         setStatus("down");
-        // Keep polling every 15s until it's back
         if (!timer.current) {
           timer.current = setInterval(() => {
             fetch(`${BASE}/`, { signal: AbortSignal.timeout(35000) })

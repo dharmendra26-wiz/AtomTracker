@@ -3,7 +3,7 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { Loader2, Zap, Wifi } from "lucide-react";
 
-const BASE = import.meta.env.VITE_API_URL || "https://atomtracker.onrender.com";
+const BASE = import.meta.env.VITE_API_URL || "/api";
 const ROLE_HOME = { Employee: "/employee", Manager: "/manager", Admin: "/admin" };
 
 const DEMOS = [
@@ -29,9 +29,6 @@ export default function LoginPage() {
   // Ping backend on mount so Render wakes up before the user clicks login
   useEffect(() => {
     setWarming(true);
-    // no-cors ping first to bypass preflight and force dyno awake
-    fetch(`${BASE}/`, { method: "GET", mode: "no-cors" }).catch(() => {});
-    // credentialed ping with long timeout to detect when it's truly up
     fetch(`${BASE}/`, { signal: AbortSignal.timeout(35000) })
       .then(() => setWarm(true))
       .catch(() => setWarm(false))

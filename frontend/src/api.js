@@ -1,4 +1,10 @@
-const BASE = import.meta.env.VITE_API_URL || "https://atomtracker.onrender.com";
+// In production (Vercel), API calls go to /api/* which Vercel proxies to the
+// Render backend server-side — eliminating CORS entirely (same-origin request).
+// In local dev, VITE_API_URL points directly to localhost:8000.
+const IS_DEV = Boolean(import.meta.env.VITE_API_URL);
+const BASE = IS_DEV
+  ? import.meta.env.VITE_API_URL
+  : "/api";
 
 function getToken() {
   return localStorage.getItem("token");
@@ -18,11 +24,11 @@ function isNetworkError(err) {
   );
 }
 
-/** Fire-and-forget no-cors ping to wake up the Render dyno.
- *  no-cors skips the preflight so it reaches the server even when sleeping. */
+/** Fire-and-forget no-cors ping to wake up the Render dyno. */
 async function warmUp() {
   try {
-    await fetch(`${BASE}/`, { method: "GET", mode: "no-cors" });
+    // In production, /api/ proxies to the Render backend via Vercel
+    await fetch(`${BASE}/`, { method: "GET" });
   } catch {
     // Ignore — this is just a warm-up
   }
@@ -30,7 +36,8 @@ async function warmUp() {
 
 /**
  * Core fetch wrapper with automatic retries for Render free-tier cold-starts.
- * Retries up to 3 times with 10 s gaps (≈ 30 s total) — matching Render wake-up time.
+ * In production: requests go through Vercel proxy (no CORS preflight).
+ * Retries up to 3 times with 10 s gaps (~30 s total).
  */
 export async function api(path, { method = "GET", body, auth = true } = {}) {
   const headers = { "Content-Type": "application/json" };
@@ -59,7 +66,7 @@ export async function api(path, { method = "GET", body, auth = true } = {}) {
 
   // Attempt with up to 3 retries on network failure (cold-start)
   const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = 10_000; // 10 s — matches Render wake-up time
+  const RETRY_DELAY_MS = 10_000; // 10 s between retries
 
   for (let i = 0; i <= MAX_RETRIES; i++) {
     try {
@@ -68,13 +75,11 @@ export async function api(path, { method = "GET", body, auth = true } = {}) {
       const isLast = i === MAX_RETRIES;
 
       if (isNetworkError(err) && !isLast) {
-        // Fire a no-cors ping to wake the dyno, then wait before retrying
         warmUp();
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
         continue;
       }
 
-      // On last retry or non-network error, surface a clear message
       if (isNetworkError(err)) {
         throw new Error(
           "Cannot reach the server. The backend may be waking up — please wait 30 s and try again."
