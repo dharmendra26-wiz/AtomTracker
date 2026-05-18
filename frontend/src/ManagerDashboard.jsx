@@ -1,24 +1,36 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ClipboardCheck, LogOut, User as UserIcon } from "lucide-react";
+import { Users, ClipboardList, TrendingUp, Clock, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { api } from "./api";
 import { useAuth } from "./AuthContext";
+import Layout from "./Layout";
 import IdChip from "./IdChip";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+
+const STATUS_INFO = {
+  Submitted: { cls: "badge-submitted", label: "Submitted" },
+  Locked:    { cls: "badge-locked",    label: "Locked" },
+};
 
 export default function ManagerDashboard() {
-  const { user, logout } = useAuth();
-  const nav = useNavigate();
-
-  const [sheets, setSheets] = useState([]);
+  const { user } = useAuth();
+  const nav      = useNavigate();
+  const [sheets, setSheets]   = useState([]);
+  const [stats,  setStats]    = useState(null);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+  const [err, setErr]         = useState("");
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const data = await api("/team-sheets");
-        if (alive) setSheets(data);
+        const [s, t] = await Promise.all([
+          api("/team-sheets"),
+          api("/team-analytics").catch(() => null),
+        ]);
+        if (!alive) return;
+        setSheets(s);
+        setStats(t);
       } catch (e) {
         if (alive) setErr(e.message);
       } finally {
@@ -28,89 +40,121 @@ export default function ManagerDashboard() {
     return () => { alive = false; };
   }, []);
 
-  function signOut() {
-    logout();
-    nav("/login", { replace: true });
+  function openSheet(s) {
+    nav(`/manager/${s.status === "Locked" ? "checkin" : "sheet"}/${s.id}`);
   }
 
-  function openSheet(s) {
-    const path = s.status === "Locked" ? "checkin" : "sheet";
-    nav(`/manager/${path}/${s.id}`);
-  }
+  const pending = sheets.filter(s => s.status === "Submitted").length;
+  const locked  = sheets.filter(s => s.status === "Locked").length;
+
+  const chartData = stats
+    ? stats.map(m => ({ name: m.user_name.split(" ")[0], score: m.overall_score }))
+    : [];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">Manager Console</h1>
-            <p className="text-sm text-slate-500">Signed in as {user?.name || "Manager"}</p>
-          </div>
-          <button
-            onClick={signOut}
-            className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100"
-          >
-            <LogOut size={16} /> Sign out
-          </button>
+    <Layout
+      title="Manager Console"
+      actions={<span className="text-sm text-slate-500">Signed in as {user?.name}</span>}
+    >
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger">
+        {[
+          { label: "Team Members", value: sheets.length || "—", icon: Users,         color: "indigo" },
+          { label: "Pending Review",value: pending,             icon: Clock,          color: "amber"  },
+          { label: "Approved",      value: locked,             icon: CheckCircle2,   color: "green"  },
+          { label: "Total Active",  value: sheets.length,      icon: ClipboardList,  color: "slate"  },
+        ].map(({ label, value, icon: Icon, color }) => {
+          const C = {
+            indigo: { bg:"#ede9fe", fg:"#6d28d9" },
+            amber:  { bg:"#fef3c7", fg:"#d97706" },
+            green:  { bg:"#d1fae5", fg:"#059669" },
+            slate:  { bg:"#f1f5f9", fg:"#475569" },
+          }[color];
+          return (
+            <div key={label} className="stat-card card animate-fade-up">
+              <div className="flex items-center justify-between">
+                <span className="label">{label}</span>
+                <div className="p-2 rounded-lg" style={{ background: C.bg }}>
+                  <Icon size={16} style={{ color: C.fg }} />
+                </div>
+              </div>
+              <div className="value" style={{ color: C.fg }}>{value}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Team score chart */}
+      {chartData.length > 0 && (
+        <div className="card p-5 mb-8">
+          <h2 className="font-bold text-slate-800 mb-4">Team Achievement Scores</h2>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={chartData} barSize={32}>
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }}
+                formatter={v => [`${v}`, "Score"]}
+              />
+              <Bar dataKey="score" radius={[6, 6, 0, 0]}>
+                {chartData.map((_, i) => (
+                  <Cell key={i} fill={i % 2 === 0 ? "#6366f1" : "#8b5cf6"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-      </header>
+      )}
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">Your team's goal sheets</h2>
-          <span className="text-sm text-slate-500">{sheets.length} active</span>
+      {err && <div className="alert alert-err mb-4"><AlertCircle size={16}/>{err}</div>}
+
+      {/* Sheets */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-slate-800">Team Goal Sheets</h2>
+        <span className="text-sm text-slate-500">{sheets.length} active</span>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-3 text-slate-500 py-16 justify-center">
+          <Loader2 className="animate-spin-slow" size={22} /> Loading team sheets…
         </div>
-
-        {err && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
-            {err}
-          </p>
-        )}
-
-        {loading ? (
-          <p className="text-slate-500">Loading...</p>
-        ) : sheets.length === 0 ? (
-          <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-10 text-center text-slate-500">
-            <ClipboardCheck className="mx-auto text-slate-400 mb-2" size={32} />
-            <p className="text-sm">No sheets from your team yet.</p>
-          </div>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {sheets.map((s) => (
-              <li key={s.id}>
-                <button
-                  onClick={() => openSheet(s)}
-                  className="w-full text-left block bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-400 hover:shadow-sm transition"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                        <UserIcon size={20} />
-                      </div>
-                      <div>
-                        <p className="text-base font-medium text-slate-900">{s.user_name}</p>
-                        <p className="text-xs text-slate-500">{s.user_email}</p>
-                      </div>
-                    </div>
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                      s.status === "Locked" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                    }`}>
-                      {s.status}
-                    </span>
+      ) : sheets.length === 0 ? (
+        <div className="card text-center py-16 text-slate-400">
+          <ClipboardList size={40} className="mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No submissions yet</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger">
+          {sheets.map(s => {
+            const info = STATUS_INFO[s.status] || STATUS_INFO.Submitted;
+            const memberStat = stats?.find(m => m.user_id === s.user_id);
+            return (
+              <button key={s.id} onClick={() => openSheet(s)}
+                className="card card-lift text-left p-5 animate-fade-up w-full">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-2.5 bg-indigo-50 rounded-xl">
+                    <Users size={18} style={{ color:"#6366f1" }} />
                   </div>
-                  <div className="flex items-center justify-between text-sm text-slate-600">
-                    <span>FY {s.year}</span>
-                    <span>{s.goal_count} goal{s.goal_count !== 1 && "s"} &middot; {s.total_weight}% total</span>
+                  <span className={`badge ${info.cls}`}>{info.label}</span>
+                </div>
+                <p className="font-bold text-slate-900 text-base">{s.user_name}</p>
+                <p className="text-xs text-slate-500 mb-2">{s.user_email}</p>
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                  <span>FY {s.year}</span>
+                  <span>{s.goal_count} goals · {s.total_weight}% weight</span>
+                </div>
+                {memberStat && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+                    <TrendingUp size={12} style={{ color:"#6366f1" }} />
+                    <span className="text-xs text-slate-600">Score: <strong>{memberStat.overall_score.toFixed(1)}</strong></span>
                   </div>
-                  <div className="mt-2">
-                    <IdChip id={s.id} label="Sheet" />
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </main>
-    </div>
+                )}
+                <div className="mt-2"><IdChip id={s.id} label="Sheet" /></div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </Layout>
   );
 }

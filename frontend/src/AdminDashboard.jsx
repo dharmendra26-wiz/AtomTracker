@@ -1,584 +1,369 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Users, FileText, Target, Search, LogOut, ArrowRight, History, Download, X, Share2, CalendarCheck,
+  Users, FileText, Target, Search, X, History, Download,
+  Share2, CalendarCheck, ArrowRight, BarChart2, Loader2, AlertCircle,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  LineChart, Line, CartesianGrid, PieChart, Pie, Legend,
+} from "recharts";
 import { api, downloadBlob } from "./api";
 import { useAuth } from "./AuthContext";
+import Layout from "./Layout";
 
-const ROLE_COLORS = {
-  Employee: "bg-indigo-500",
-  Manager:  "bg-amber-500",
-  Admin:    "bg-emerald-500",
-};
-
-const STATUS_COLORS = {
-  Draft:     "bg-slate-400",
-  Submitted: "bg-amber-500",
-  Locked:    "bg-emerald-500",
-};
-
-const ACTION_COLORS = {
-  override:      "bg-amber-100 text-amber-800",
-  approve:       "bg-emerald-100 text-emerald-800",
-  update_actual: "bg-indigo-100 text-indigo-800",
-};
+const ROLE_COLORS  = { Employee:"#6366f1", Manager:"#f59e0b", Admin:"#10b981" };
+const STATUS_COLORS = { Draft:"#94a3b8", Submitted:"#f59e0b", Locked:"#10b981" };
+const Q_COLORS      = ["#6366f1","#8b5cf6","#a78bfa","#c4b5fd"];
 
 export default function AdminDashboard() {
-  const { user, logout } = useAuth();
-  const nav = useNavigate();
+  const { user }  = useAuth();
+  const nav       = useNavigate();
+  const [analytics, setAnalytics]   = useState(null);
+  const [qoq, setQoq]               = useState(null);
+  const [completion, setCompletion] = useState(null);
+  const [year, setYear]             = useState(String(new Date().getFullYear()));
+  const [err, setErr]               = useState("");
 
-  const [analytics, setAnalytics] = useState(null);
-  const [analyticsErr, setAnalyticsErr] = useState("");
-
-  const [query, setQuery] = useState("");
+  const [query, setQuery]       = useState("");
+  const [logs, setLogs]         = useState(null);
   const [filtered, setFiltered] = useState(false);
-  const [logs, setLogs] = useState(null);
   const [searching, setSearching] = useState(false);
-  const [logsErr, setLogsErr] = useState("");
-
+  const [logsErr, setLogsErr]   = useState("");
   const [downloading, setDownloading] = useState(false);
-  const [downloadErr, setDownloadErr] = useState("");
+
+  async function loadAll(y) {
+    setErr("");
+    try {
+      const [a, q, c] = await Promise.all([
+        api("/analytics"),
+        api(`/analytics/qoq?year=${y}`).catch(() => null),
+        api(`/completion?year=${y}`).catch(() => null),
+      ]);
+      setAnalytics(a); setQoq(q); setCompletion(c);
+    } catch (e) { setErr(e.message); }
+  }
 
   async function loadGlobalLogs() {
-    setSearching(true);
-    setLogsErr("");
-    try {
-      const res = await api("/audit-logs");
-      setLogs(res);
-      setFiltered(false);
-    } catch (e) {
-      setLogsErr(e.message);
-      setLogs([]);
-    } finally {
-      setSearching(false);
-    }
+    setSearching(true); setLogsErr("");
+    try { setLogs(await api("/audit-logs")); setFiltered(false); }
+    catch (e) { setLogsErr(e.message); setLogs([]); }
+    finally { setSearching(false); }
   }
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const a = await api("/analytics");
-        setAnalytics(a);
-      } catch (e) {
-        setAnalyticsErr(e.message);
-      }
-    })();
-    loadGlobalLogs();
-  }, []);
-
-  function signOut() {
-    logout();
-    nav("/login", { replace: true });
-  }
+  useEffect(() => { loadAll(year); loadGlobalLogs(); }, []);
 
   async function searchLogs(e) {
     e.preventDefault();
     const q = query.trim();
-    if (!q) {
-      await loadGlobalLogs();
-      return;
-    }
-    setSearching(true);
-    setLogsErr("");
-    try {
-      const res = await api(`/audit-logs/${q}`);
-      setLogs(res);
-      setFiltered(true);
-    } catch (e) {
-      setLogsErr(e.message);
-      setLogs([]);
-    } finally {
-      setSearching(false);
-    }
+    if (!q) { await loadGlobalLogs(); return; }
+    setSearching(true); setLogsErr("");
+    try { setLogs(await api(`/audit-logs/${q}`)); setFiltered(true); }
+    catch (e) { setLogsErr(e.message); setLogs([]); }
+    finally { setSearching(false); }
   }
 
-  async function clearFilter() {
-    setQuery("");
-    await loadGlobalLogs();
-  }
-
-  async function downloadReport() {
+  async function doDownload() {
     setDownloading(true);
-    setDownloadErr("");
-    try {
-      await downloadBlob("/reports/achievements.csv", "achievements.csv");
-    } catch (e) {
-      setDownloadErr(e.message);
-    } finally {
-      setDownloading(false);
-    }
+    try { await downloadBlob("/reports/achievements.csv", "achievements.csv"); }
+    catch (e) { setErr(e.message); }
+    finally { setDownloading(false); }
   }
+
+  const pieData = analytics
+    ? Object.entries(analytics.users_by_role).map(([k,v]) => ({ name:k, value:v }))
+    : [];
+  const statusData = analytics
+    ? Object.entries(analytics.sheets_by_status).map(([k,v]) => ({ name:k, value:v, fill: STATUS_COLORS[k]||"#94a3b8" }))
+    : [];
+  const qoqData = qoq ? qoq.points : [];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">Admin Console</h1>
-            <p className="text-sm text-slate-500">Signed in as {user?.name || "Admin"}</p>
-          </div>
-          <button
-            onClick={signOut}
-            className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100"
-          >
-            <LogOut size={16} /> Sign out
+    <Layout
+      title="Admin Console"
+      actions={
+        <div className="flex gap-2">
+          <button onClick={() => nav("/admin/users")} className="btn btn-ghost text-xs">
+            <Users size={14}/> Manage Users
+          </button>
+          <button onClick={doDownload} disabled={downloading} className="btn btn-success text-xs">
+            {downloading ? <Loader2 size={14} className="animate-spin-slow"/> : <Download size={14}/>}
+            Export CSV
           </button>
         </div>
-      </header>
+      }
+    >
+      {err && <div className="alert alert-err mb-6"><AlertCircle size={16}/>{err}</div>}
 
-      <main className="max-w-6xl mx-auto px-6 py-8 space-y-10">
-        {/* ---------- Analytics ---------- */}
-        <section>
-          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Analytics overview</h2>
-              <p className="text-sm text-slate-500">A snapshot of the platform's current state</p>
-            </div>
-            <button
-              onClick={downloadReport}
-              disabled={downloading}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg disabled:opacity-60 transition shadow-sm"
-            >
-              <Download size={16} /> {downloading ? "Preparing..." : "Download Achievement Report (CSV)"}
-            </button>
+      {/* ── Totals ── */}
+      {analytics && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8 stagger">
+          {[
+            { label:"Total Users",  value: analytics.totals.users,  icon: Users,     color:"indigo" },
+            { label:"Total Sheets", value: analytics.totals.sheets, icon: FileText,  color:"amber"  },
+            { label:"Total Goals",  value: analytics.totals.goals,  icon: Target,    color:"green"  },
+          ].map(({ label, value, icon: Icon, color }) => {
+            const C = { indigo:{bg:"#ede9fe",fg:"#6d28d9"}, amber:{bg:"#fef3c7",fg:"#d97706"}, green:{bg:"#d1fae5",fg:"#059669"} }[color];
+            return (
+              <div key={label} className="stat-card card animate-fade-up">
+                <div className="flex items-center justify-between">
+                  <span className="label">{label}</span>
+                  <div className="p-2 rounded-lg" style={{ background: C.bg }}>
+                    <Icon size={16} style={{ color: C.fg }} />
+                  </div>
+                </div>
+                <div className="value" style={{ color: C.fg }}>{value}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Charts row ── */}
+      {analytics && (
+        <div className="grid lg:grid-cols-3 gap-4 mb-8">
+          {/* Users by Role donut */}
+          <div className="card p-5">
+            <h3 className="font-bold text-slate-800 mb-3 text-sm">Users by Role</h3>
+            <ResponsiveContainer width="100%" height={170}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70}>
+                  {pieData.map((e, i) => <Cell key={i} fill={ROLE_COLORS[e.name] || "#94a3b8"} />)}
+                </Pie>
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:12 }} />
+                <Tooltip contentStyle={{ borderRadius:10, fontSize:12 }} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
 
-          {downloadErr && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
-              {downloadErr}
-            </p>
-          )}
-
-          {analyticsErr && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
-              {analyticsErr}
-            </p>
-          )}
-
-          {!analytics && !analyticsErr && (
-            <p className="text-slate-500">Loading analytics...</p>
-          )}
-
-          {analytics && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <StatCard icon={<Users size={18} />}    label="Total Users"  value={analytics.totals.users}  color="indigo" />
-                <StatCard icon={<FileText size={18} />} label="Total Sheets" value={analytics.totals.sheets} color="amber" />
-                <StatCard icon={<Target size={18} />}   label="Total Goals"  value={analytics.totals.goals}  color="emerald" />
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-3">
-                <DistributionCard
-                  title="Users by Role"
-                  icon={<Users size={18} />}
-                  data={analytics.users_by_role}
-                  colors={ROLE_COLORS}
-                />
-                <DistributionCard
-                  title="Sheets by Status"
-                  icon={<FileText size={18} />}
-                  data={analytics.sheets_by_status}
-                  colors={STATUS_COLORS}
-                />
-                <DistributionCard
-                  title="Goals by Thrust Area"
-                  icon={<Target size={18} />}
-                  data={analytics.goals_by_thrust_area}
-                />
-              </div>
-            </>
-          )}
-        </section>
-
-        {/* ---------- Completion ---------- */}
-        <CompletionSection />
-
-        {/* ---------- Cascade Goal ---------- */}
-        <CascadeSection />
-
-        {/* ---------- Audit explorer ---------- */}
-        <section>
-          <div className="flex items-center gap-2 mb-1">
-            <History size={20} className="text-slate-700" />
-            <h2 className="text-lg font-semibold text-slate-900">Audit trail explorer</h2>
+          {/* Sheets by status */}
+          <div className="card p-5">
+            <h3 className="font-bold text-slate-800 mb-3 text-sm">Sheets by Status</h3>
+            <ResponsiveContainer width="100%" height={170}>
+              <BarChart data={statusData} barSize={36}>
+                <XAxis dataKey="name" tick={{ fontSize:11 }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ fontSize:11 }} axisLine={false} tickLine={false}/>
+                <Tooltip contentStyle={{ borderRadius:10, fontSize:12 }}/>
+                <Bar dataKey="value" radius={[6,6,0,0]}>
+                  {statusData.map((e,i) => <Cell key={i} fill={e.fill} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <p className="text-sm text-slate-500 mb-4">
-            Showing the {filtered ? "filtered" : "50 most recent"} log entries. Paste an entity ID to filter.
-          </p>
 
-          <form onSubmit={searchLogs} className="flex flex-col sm:flex-row gap-2 mb-4">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Entity UUID (e.g. f4a58303-...)"
-              className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <button
-              type="submit"
-              disabled={searching}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Search size={16} /> {searching ? "Searching..." : "Search Logs"}
-            </button>
-            {filtered && (
-              <button
-                type="button"
-                onClick={clearFilter}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg"
-              >
-                <X size={16} /> Clear filter
-              </button>
+          {/* QoQ trend */}
+          <div className="card p-5">
+            <h3 className="font-bold text-slate-800 mb-3 text-sm">QoQ Avg Score ({year})</h3>
+            {qoqData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={170}>
+                <LineChart data={qoqData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                  <XAxis dataKey="quarter" tick={{ fontSize:11 }} axisLine={false} tickLine={false}/>
+                  <YAxis domain={[0,100]} tick={{ fontSize:11 }} axisLine={false} tickLine={false}/>
+                  <Tooltip contentStyle={{ borderRadius:10, fontSize:12 }}/>
+                  <Line type="monotone" dataKey="avg_score" stroke="#6366f1" strokeWidth={2.5}
+                    dot={{ fill:"#6366f1", r:4 }} activeDot={{ r:6 }}/>
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-slate-400 text-sm text-center py-8">No check-in data yet.</p>
             )}
-          </form>
+          </div>
+        </div>
+      )}
 
-          {logsErr && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
-              {logsErr}
-            </p>
-          )}
+      {/* ── Completion Dashboard ── */}
+      <section className="mb-10">
+        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <CalendarCheck size={18} style={{ color:"#6366f1" }}/>
+            <h2 className="font-bold text-slate-900">Check-in Completion</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <input className="input" style={{ width:80 }} type="text" pattern="\d{4}"
+              value={year} onChange={e => setYear(e.target.value)} />
+            <button onClick={() => loadAll(year)} className="btn btn-ghost text-xs">Refresh</button>
+          </div>
+        </div>
 
-          {logs && logs.length === 0 && !logsErr && (
-            <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-10 text-center text-slate-500">
-              {filtered ? "No audit logs found for this entity." : "No audit activity yet."}
+        {completion && (
+          <>
+            <div className="grid grid-cols-4 gap-3 mb-4">
+              {["q1","q2","q3","q4"].map((q, i) => {
+                const pct = completion.summary[`${q}_pct`];
+                return (
+                  <div key={q} className="card p-4 text-center">
+                    <p className="text-xs font-bold text-slate-500 uppercase">{q.toUpperCase()}</p>
+                    <p className="text-3xl font-extrabold mt-1" style={{ color: pct===100?"#059669":pct>=50?"#d97706":"#6366f1" }}>
+                      {pct}%
+                    </p>
+                    <div className="weight-bar-track mt-2">
+                      <div className="weight-bar-fill" style={{ width:`${pct}%`, background: pct===100?"#10b981":pct>=50?"#f59e0b":"#6366f1" }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-
-          {logs && logs.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-slate-500 text-xs uppercase tracking-wide">
+            <div className="card overflow-hidden">
+              <table className="tbl">
+                <thead>
                   <tr>
-                    <th className="px-4 py-2.5 font-medium">When</th>
-                    <th className="px-4 py-2.5 font-medium">Entity</th>
-                    <th className="px-4 py-2.5 font-medium">Action</th>
-                    <th className="px-4 py-2.5 font-medium">By</th>
-                    <th className="px-4 py-2.5 font-medium">Change</th>
+                    <th>Employee</th><th>Reports to</th><th>Sheet</th><th className="text-center">Goals</th>
+                    {["Q1","Q2","Q3","Q4"].map(q => <th key={q} className="text-center">{q}</th>)}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {logs.map((l) => (
-                    <LogRow key={l.id} log={l} />
+                <tbody>
+                  {completion.employees.length === 0 && (
+                    <tr><td colSpan={8} className="text-center py-6 text-slate-400">No employees found.</td></tr>
+                  )}
+                  {completion.employees.map(r => (
+                    <tr key={r.user_id}>
+                      <td>
+                        <p className="font-semibold text-slate-900">{r.user_name}</p>
+                        <p className="text-xs text-slate-400">{r.user_email}</p>
+                      </td>
+                      <td className="text-slate-500 text-xs">{r.manager_email || "—"}</td>
+                      <td>
+                        {r.sheet_status
+                          ? <span className={`badge ${r.sheet_status==="Locked"?"badge-locked":r.sheet_status==="Submitted"?"badge-submitted":"badge-draft"}`}>{r.sheet_status}</span>
+                          : <span className="text-xs text-slate-400">No sheet</span>}
+                      </td>
+                      <td className="text-center text-slate-600">{r.goals_count}</td>
+                      {["q1","q2","q3","q4"].map(k => (
+                        <td key={k} className="text-center">
+                          {r[k]
+                            ? <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs">✓</span>
+                            : <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-xs">·</span>}
+                        </td>
+                      ))}
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
-        </section>
-      </main>
-    </div>
-  );
-}
+          </>
+        )}
+      </section>
 
-function StatCard({ icon, label, value, color }) {
-  const styles = {
-    indigo:  "bg-indigo-50 text-indigo-600",
-    amber:   "bg-amber-50 text-amber-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-  };
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">{label}</p>
-        <div className={`p-2 rounded-lg ${styles[color]}`}>{icon}</div>
-      </div>
-      <p className="mt-2 text-3xl font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}
+      {/* ── Cascade ── */}
+      <CascadeSection />
 
-function DistributionCard({ title, icon, data, colors }) {
-  const entries = Object.entries(data);
-  const max = Math.max(1, ...entries.map(([, v]) => v));
-  const total = entries.reduce((s, [, v]) => s + v, 0);
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-slate-100 text-slate-600 rounded-lg">{icon}</div>
-          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      {/* ── Audit Trail ── */}
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <History size={18} style={{ color:"#6366f1" }}/>
+          <h2 className="font-bold text-slate-900">Audit Trail</h2>
         </div>
-        <span className="text-xs text-slate-500">Total: {total}</span>
-      </div>
-
-      {entries.length === 0 || total === 0 ? (
-        <p className="text-sm text-slate-400">No data yet.</p>
-      ) : (
-        <ul className="space-y-2.5">
-          {entries.map(([label, count]) => {
-            const pct = Math.round((count / max) * 100);
-            const barColor = colors?.[label] || "bg-indigo-500";
-            return (
-              <li key={label}>
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-slate-700">{label}</span>
-                  <span className="font-medium text-slate-900">{count}</span>
-                </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full ${barColor}`} style={{ width: `${pct}%` }} />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function CompletionSection() {
-  const [year, setYear] = useState(String(new Date().getFullYear()));
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
-
-  async function load(y) {
-    setLoading(true);
-    setErr("");
-    try {
-      const res = await api(`/completion?year=${y}`);
-      setData(res);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(year); }, []);
-
-  const quarters = ["Q1", "Q2", "Q3", "Q4"];
-
-  return (
-    <section>
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
-        <div className="flex items-center gap-2">
-          <CalendarCheck size={20} className="text-slate-700" />
-          <h2 className="text-lg font-semibold text-slate-900">Check-in completion dashboard</h2>
-        </div>
-        <form
-          onSubmit={(e) => { e.preventDefault(); load(year); }}
-          className="flex items-center gap-2"
-        >
-          <input
-            type="text"
-            pattern="\d{4}"
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="w-24 px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="text-sm px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-60"
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-        </form>
-      </div>
-      <p className="text-sm text-slate-500 mb-4">
-        Real-time per-employee check-in status for the selected year. A quarter is "complete" when every owned (non-shared-copy) goal has a logged actual.
-      </p>
-
-      {err && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
-          {err}
+        <p className="text-sm text-slate-500 mb-4">
+          {filtered ? "Filtered results" : "50 most recent"} — paste any entity UUID to filter.
         </p>
-      )}
-
-      {data && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-            {quarters.map((q) => {
-              const pct = data.summary[`${q.toLowerCase()}_pct`];
-              return (
-                <div key={q} className="bg-white border border-slate-200 rounded-xl p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">{q} completion</p>
-                  <p className="text-2xl font-semibold text-slate-900 mt-1">{pct}%</p>
-                  <div className="h-1.5 mt-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${pct === 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-slate-300"}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+        <form onSubmit={searchLogs} className="flex gap-2 mb-4 flex-wrap">
+          <input className="input flex-1" value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="Entity UUID (e.g. f4a58303-…)" style={{ fontFamily:"monospace", fontSize:13 }}/>
+          <button type="submit" disabled={searching} className="btn btn-primary">
+            {searching ? <Loader2 size={15} className="animate-spin-slow"/> : <Search size={15}/>}
+            Search
+          </button>
+          {filtered && (
+            <button type="button" onClick={async () => { setQuery(""); await loadGlobalLogs(); }} className="btn btn-ghost">
+              <X size={15}/> Clear
+            </button>
+          )}
+        </form>
+        {logsErr && <div className="alert alert-err mb-3">{logsErr}</div>}
+        {logs && logs.length === 0 && !logsErr && (
+          <div className="card text-center py-10 text-slate-400">
+            {filtered ? "No logs for this entity." : "No audit activity yet."}
           </div>
-
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-slate-500 text-xs uppercase tracking-wide">
+        )}
+        {logs && logs.length > 0 && (
+          <div className="card overflow-hidden">
+            <table className="tbl">
+              <thead>
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Employee</th>
-                  <th className="px-4 py-2.5 font-medium">Reports to</th>
-                  <th className="px-4 py-2.5 font-medium">Sheet</th>
-                  <th className="px-4 py-2.5 font-medium text-center">Goals</th>
-                  {quarters.map((q) => (
-                    <th key={q} className="px-3 py-2.5 font-medium text-center">{q}</th>
-                  ))}
+                  <th>When</th><th>Entity</th><th>Action</th><th>Changed By</th><th>Change</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.employees.length === 0 && (
-                  <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">No employees found.</td></tr>
-                )}
-                {data.employees.map((r) => (
-                  <tr key={r.user_id}>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900">{r.user_name}</div>
-                      <div className="text-xs text-slate-500">{r.user_email}</div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 text-xs">{r.manager_email || "—"}</td>
-                    <td className="px-4 py-3">
-                      {r.sheet_status ? (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                          r.sheet_status === "Locked" ? "bg-emerald-100 text-emerald-800"
-                          : r.sheet_status === "Submitted" ? "bg-amber-100 text-amber-800"
-                          : "bg-slate-100 text-slate-700"
-                        }`}>
-                          {r.sheet_status}
-                        </span>
-                      ) : <span className="text-xs text-slate-400">No sheet</span>}
-                    </td>
-                    <td className="px-4 py-3 text-center text-slate-600">{r.goals_count}</td>
-                    {["q1","q2","q3","q4"].map((k) => (
-                      <td key={k} className="px-3 py-3 text-center">
-                        {r[k] ? (
-                          <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-sm">✓</span>
-                        ) : (
-                          <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-sm">·</span>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+              <tbody>
+                {logs.map(l => <LogRow key={l.id} log={l}/>)}
               </tbody>
             </table>
           </div>
-        </>
-      )}
-    </section>
+        )}
+      </section>
+    </Layout>
   );
 }
 
 function CascadeSection() {
   const [goalId, setGoalId] = useState("");
   const [emails, setEmails] = useState("");
-  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [year, setYear]     = useState(String(new Date().getFullYear()));
   const [weight, setWeight] = useState(20);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy]     = useState(false);
   const [results, setResults] = useState(null);
-  const [err, setErr] = useState("");
+  const [err, setErr]       = useState("");
 
   async function submit(e) {
-    e.preventDefault();
-    setBusy(true);
-    setErr("");
-    setResults(null);
+    e.preventDefault(); setBusy(true); setErr(""); setResults(null);
     try {
-      const emailList = emails.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
-      if (emailList.length === 0) throw new Error("Add at least one employee email");
-      const res = await api(`/goals/${goalId.trim()}/cascade`, {
-        method: "POST",
-        body: { employee_emails: emailList, year, default_weight: Number(weight) },
-      });
-      setResults(res);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+      const emailList = emails.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
+      if (!emailList.length) throw new Error("Add at least one email");
+      setResults(await api(`/goals/${goalId.trim()}/cascade`, {
+        method:"POST", body:{ employee_emails:emailList, year, default_weight:Number(weight) }
+      }));
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
   }
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-1">
-        <Share2 size={20} className="text-slate-700" />
-        <h2 className="text-lg font-semibold text-slate-900">Cascade a goal (Shared Goals)</h2>
+    <section className="mb-10">
+      <div className="flex items-center gap-2 mb-2">
+        <Share2 size={18} style={{ color:"#6366f1" }}/>
+        <h2 className="font-bold text-slate-900">Cascade a Goal</h2>
       </div>
       <p className="text-sm text-slate-500 mb-4">
-        Push a primary goal as a shared copy to multiple employees. Recipients can only adjust weight; the primary owner's actuals flow through automatically.
+        Push a primary goal as a shared copy to multiple employees. Recipients can only adjust weight.
       </p>
-
-      <form onSubmit={submit} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+      <form onSubmit={submit} className="card p-5 space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Source Goal ID</label>
-            <input
-              type="text"
-              required
-              value={goalId}
-              onChange={(e) => setGoalId(e.target.value)}
-              placeholder="Paste a Goal UUID from any sheet"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Source Goal UUID</label>
+            <input className="input" required value={goalId} onChange={e=>setGoalId(e.target.value)}
+              placeholder="Paste goal UUID from any sheet" style={{ fontFamily:"monospace", fontSize:13 }}/>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Year</label>
-            <input
-              type="text"
-              required
-              pattern="\d{4}"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Year</label>
+            <input className="input" required pattern="\d{4}" value={year} onChange={e=>setYear(e.target.value)}/>
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            Recipient employee emails <span className="text-slate-400 font-normal">(comma or newline separated)</span>
+          <label className="block text-xs font-semibold text-slate-600 mb-1">
+            Recipient emails <span className="text-slate-400 font-normal">(comma or newline separated)</span>
           </label>
-          <textarea
-            rows={2}
-            required
-            value={emails}
-            onChange={(e) => setEmails(e.target.value)}
-            placeholder="employee@test.com, emp2@test.com"
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+          <textarea className="input" rows={2} required value={emails} onChange={e=>setEmails(e.target.value)}
+            placeholder="employee@company.com, emp2@company.com"/>
         </div>
         <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Default weight on each copy</label>
-            <input
-              type="number"
-              min={10}
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              className="w-32 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Default weight on each copy</label>
+            <input className="input" type="number" min={10} value={weight} onChange={e=>setWeight(e.target.value)} style={{ width:100 }}/>
           </div>
-          <button
-            type="submit"
-            disabled={busy}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-60"
-          >
-            <Share2 size={16} /> {busy ? "Cascading..." : "Cascade Goal"}
+          <button type="submit" disabled={busy} className="btn btn-primary">
+            {busy ? <Loader2 size={15} className="animate-spin-slow"/> : <Share2 size={15}/>}
+            Cascade
           </button>
         </div>
+        {err && <div className="alert alert-err">{err}</div>}
       </form>
-
-      {err && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-3">{err}</p>
-      )}
-
       {results && (
-        <ul className="mt-4 space-y-2">
-          {results.map((r, i) => {
+        <ul className="mt-3 space-y-2">
+          {results.map((r,i) => {
             const ok = r.status === "cloned" || r.status === "already shared";
             return (
-              <li
-                key={i}
-                className={`flex items-center justify-between text-sm rounded-lg px-3 py-2 border ${
-                  ok
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : "bg-amber-50 border-amber-200 text-amber-800"
-                }`}
-              >
+              <li key={i} className={`flex items-center justify-between text-sm px-4 py-2.5 rounded-xl border ${
+                ok ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-200 text-amber-800"
+              }`}>
                 <span className="font-medium">{r.email}</span>
                 <span>{r.status}</span>
               </li>
@@ -590,50 +375,33 @@ function CascadeSection() {
   );
 }
 
+const ACTION_COLORS = {
+  override:      "badge-submitted",
+  approve:       "badge-locked",
+  reject:        "bg-rose-100 text-rose-800",
+  update_actual: "bg-indigo-100 text-indigo-800",
+  cascade:       "bg-violet-100 text-violet-800",
+};
+
 function safeParse(s) {
-  try { return JSON.stringify(JSON.parse(s)); } catch { return s ?? "—"; }
+  try { return JSON.stringify(JSON.parse(s), null, 0); } catch { return s ?? "—"; }
 }
 
 function LogRow({ log }) {
-  const when = new Date(log.timestamp).toLocaleString();
+  const when   = new Date(log.timestamp).toLocaleString();
   const oldVal = safeParse(log.old_value);
   const newVal = safeParse(log.new_value);
   return (
     <tr>
-      <td className="px-4 py-3 text-slate-600 align-top whitespace-nowrap text-xs">
-        {when}
-      </td>
-      <td className="px-4 py-3 align-top">
-        <span className="text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-          {log.entity_type}
-        </span>
-      </td>
-      <td className="px-4 py-3 align-top">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded ${ACTION_COLORS[log.action] || "bg-slate-100 text-slate-700"}`}>
-          {log.action}
-        </span>
-      </td>
-      <td
-        className="px-4 py-3 font-mono text-xs text-slate-500 align-top whitespace-nowrap"
-        title={log.changed_by}
-      >
-        {log.changed_by.slice(0, 8)}…
-      </td>
-      <td className="px-4 py-3 align-top">
+      <td className="text-xs text-slate-500 whitespace-nowrap">{when}</td>
+      <td><span className="badge badge-draft">{log.entity_type}</span></td>
+      <td><span className={`badge ${ACTION_COLORS[log.action] || "badge-draft"}`}>{log.action}</span></td>
+      <td className="font-mono text-xs text-slate-400" title={log.changed_by}>{log.changed_by.slice(0,8)}…</td>
+      <td>
         <div className="flex items-center gap-2 text-xs font-mono">
-          <span
-            className="bg-red-50 text-red-700 px-2 py-1 rounded border border-red-100 max-w-[18rem] truncate"
-            title={oldVal}
-          >
-            {oldVal}
-          </span>
-          <ArrowRight size={14} className="text-slate-400 shrink-0" />
-          <span
-            className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded border border-emerald-100 max-w-[18rem] truncate"
-            title={newVal}
-          >
-            {newVal}
-          </span>
+          <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-100 max-w-[12rem] truncate" title={oldVal}>{oldVal}</span>
+          <ArrowRight size={12} className="text-slate-400 shrink-0"/>
+          <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 max-w-[12rem] truncate" title={newVal}>{newVal}</span>
         </div>
       </td>
     </tr>

@@ -10,11 +10,202 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User, GoalSheet, Goal, AuditLog, Role, SheetStatus
-from auth import require_role
+from models import User, GoalSheet, Goal, AuditLog, CheckIn, Role, SheetStatus, Quarter
+from auth import require_role, hash_pw
 from routes_checkins import compute_score
 
 router = APIRouter()
+
+
+# -------------------- User Management (Admin) --------------------
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+    role: Role
+    mgr_id: Optional[str] = None
+
+
+class UserOut(BaseModel):
+    id: str
+    name: str
+    email: str
+    role: Role
+    mgr_id: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[Role] = None
+    mgr_id: Optional[str] = None
+    password: Optional[str] = None
+
+
+@router.get("/users", response_model=List[UserOut])
+def list_users(
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_role(["Admin"])),
+):
+    return db.query(User).order_by(User.name).all()
+
+
+@router.post("/users", response_model=UserOut)
+def create_user(
+    body: UserCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_role(["Admin"])),
+):
+    if db.query(User).filter(User.email == body.email).first():
+        raise HTTPException(400, "Email already in use")
+    user = User(
+        name=body.name,
+        email=body.email,
+        hashed_pw=hash_pw(body.password),
+        role=body.role,
+        mgr_id=body.mgr_id,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+def update_user(
+    user_id: str,
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_role(["Admin"])),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    if body.name:
+        user.name = body.name
+    if body.role:
+        user.role = body.role
+    if body.mgr_id is not None:
+        user.mgr_id = body.mgr_id or None
+    if body.password:
+        user.hashed_pw = hash_pw(body.password)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_role(["Admin"])),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    if user.role == Role.Admin:
+        raise HTTPException(400, "Cannot delete an Admin account")
+    db.delete(user)
+    db.commit()
+    return {"msg": "User deleted", "user_id": user_id}
+
+
+# -------------------- QoQ Analytics --------------------
+
+class QoQPoint(BaseModel):
+    quarter: str
+    avg_score: float
+    completed_count: int
+
+
+class QoQOut(BaseModel):
+    year: str
+    points: List[QoQPoint]
+
+
+@router.get("/analytics/qoq", response_model=QoQOut)
+def qoq_analytics(
+    year: Optional[str] = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_role(["Admin"])),
+):
+    """Quarter-on-Quarter average achievement score across all employees."""
+    y = year or str(datetime.now().year)
+    quarters = [Quarter.Q1, Quarter.Q2, Quarter.Q3, Quarter.Q4]
+    points = []
+
+    for qtr in quarters:
+        checkins = (
+            db.query(CheckIn, Goal)
+            .join(Goal, CheckIn.goal_id == Goal.id)
+            .join(GoalSheet, Goal.sheet_id == GoalSheet.id)
+            .filter(GoalSheet.year == y, CheckIn.qtr == qtr, CheckIn.actual.isnot(None))
+            .all()
+        )
+        scores = [
+            compute_score(goal.uom.value, goal.target, ci.actual)
+            for ci, goal in checkins
+        ]
+        avg = round(sum(scores) / len(scores), 2) if scores else 0.0
+        points.append(QoQPoint(
+            quarter=qtr.value,
+            avg_score=avg,
+            completed_count=len(scores),
+        ))
+
+    return QoQOut(year=y, points=points)
+
+
+# -------------------- Manager Team Analytics --------------------
+
+class TeamMemberStat(BaseModel):
+    user_id: str
+    user_name: str
+    user_email: str
+    sheet_status: Optional[str] = None
+    goal_count: int
+    overall_score: float
+
+
+@router.get("/team-analytics", response_model=List[TeamMemberStat])
+def team_analytics(
+    year: Optional[str] = None,
+    db: Session = Depends(get_db),
+    mgr: User = Depends(require_role(["Manager", "Admin"])),
+):
+    """Per-employee score summary for the manager's team."""
+    y = year or str(datetime.now().year)
+    reports = db.query(User).filter(User.mgr_id == mgr.id).all()
+    result = []
+    for emp in reports:
+        sheet = db.query(GoalSheet).filter(
+            GoalSheet.user_id == emp.id,
+            GoalSheet.year == y,
+        ).first()
+        if not sheet:
+            result.append(TeamMemberStat(
+                user_id=emp.id, user_name=emp.name, user_email=emp.email,
+                sheet_status=None, goal_count=0, overall_score=0.0,
+            ))
+            continue
+        weighted_sum = 0.0
+        total_weight = 0
+        for goal in sheet.goals:
+            effective = goal.source if goal.source_goal_id else goal
+            ckins = sorted(effective.checkins, key=lambda c: c.qtr.value)
+            latest = ckins[-1] if ckins else None
+            score = compute_score(goal.uom.value, goal.target, latest.actual) if (latest and latest.actual is not None) else 0.0
+            weighted_sum += score * goal.weight
+            total_weight += goal.weight
+        overall = round(weighted_sum / total_weight, 2) if total_weight else 0.0
+        result.append(TeamMemberStat(
+            user_id=emp.id, user_name=emp.name, user_email=emp.email,
+            sheet_status=sheet.status.value, goal_count=len(sheet.goals), overall_score=overall,
+        ))
+    return result
+
+
 
 
 # -------------------- Schemas --------------------

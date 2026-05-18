@@ -1,0 +1,3 @@
+# Used only by scripts/generate_submission_pdf.py
+reportlab>=4.0
+pillow>=10.0

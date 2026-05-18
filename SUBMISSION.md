@@ -97,3 +97,9 @@ AtomTracker is a clean two-tier app: a stateless React SPA talking to a single F
 ## Built With
 
 FastAPI · SQLAlchemy 2 · PyJWT · bcrypt · React 19 · Vite 8 · Tailwind v4 · lucide-react · react-router-dom v7
+
+### Submission PDF (single document)
+
+The hackathon asks for one PDF with live link, repository, and architecture. Regenerate **`SUBMISSION.pdf`** at the repo root with:
+
+`python scripts/generate_submission_pdf.py` (requires `pip install reportlab pillow`, e.g. in `backend/venv`).

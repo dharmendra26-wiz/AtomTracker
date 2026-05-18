@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -62,6 +62,15 @@ class TeamSheetOut(BaseModel):
 
 class RejectIn(BaseModel):
     comment: str
+
+
+class GoalUpdate(BaseModel):
+    title: Optional[str] = None
+    desc: Optional[str] = None
+    thrust_area: Optional[str] = None
+    uom: Optional[UOM] = None
+    target: Optional[float] = None
+    weight: Optional[int] = None
 
 
 # -------------------- Employee: list my sheets --------------------
@@ -130,6 +139,77 @@ def update_goal_weight(
     goal.weight = body.weight
     db.commit()
     return {"msg": "Weight updated", "goal_id": goal.id, "weight": goal.weight}
+
+
+# -------------------- Employee: edit goal --------------------
+
+@router.patch("/goals/{goal_id}", response_model=GoalOut)
+def update_goal(
+    goal_id: str,
+    body: GoalUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_curr_user),
+):
+    """Edit any goal field while the sheet is still Draft."""
+    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    if not goal:
+        raise HTTPException(404, "Goal not found")
+
+    sheet = db.query(GoalSheet).filter(GoalSheet.id == goal.sheet_id).first()
+    if sheet.user_id != user.id:
+        raise HTTPException(403, "Not your goal")
+    if sheet.status != SheetStatus.Draft:
+        raise HTTPException(400, "Goals can only be edited in Draft state")
+
+    if goal.source_goal_id:
+        # Shared copies: only weight is editable
+        if any(v is not None for v in [body.title, body.desc, body.thrust_area, body.uom, body.target]):
+            raise HTTPException(400, "Shared goals — only weight can be changed")
+
+    if body.title is not None:
+        goal.title = body.title
+    if body.desc is not None:
+        goal.desc = body.desc
+    if body.thrust_area is not None:
+        goal.thrust_area = body.thrust_area
+    if body.uom is not None:
+        goal.uom = body.uom
+    if body.target is not None:
+        goal.target = body.target
+    if body.weight is not None:
+        if body.weight < 10:
+            raise HTTPException(400, "Weight must be at least 10")
+        goal.weight = body.weight
+
+    db.commit()
+    db.refresh(goal)
+    return goal
+
+
+# -------------------- Employee: delete goal --------------------
+
+@router.delete("/goals/{goal_id}")
+def delete_goal(
+    goal_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_curr_user),
+):
+    """Delete a goal (only allowed while the sheet is Draft)."""
+    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    if not goal:
+        raise HTTPException(404, "Goal not found")
+
+    sheet = db.query(GoalSheet).filter(GoalSheet.id == goal.sheet_id).first()
+    if sheet.user_id != user.id:
+        raise HTTPException(403, "Not your goal")
+    if sheet.status != SheetStatus.Draft:
+        raise HTTPException(400, "Goals can only be deleted from a Draft sheet")
+    if goal.source_goal_id:
+        raise HTTPException(400, "Shared goals cannot be deleted — contact Admin")
+
+    db.delete(goal)
+    db.commit()
+    return {"msg": "Goal deleted", "goal_id": goal_id}
 
 
 # -------------------- Employee: add goal --------------------

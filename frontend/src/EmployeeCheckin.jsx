@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Target, TrendingUp, Lock } from "lucide-react";
+import { Target, TrendingUp, Lock, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { api } from "./api";
+import Layout from "./Layout";
 import IdChip from "./IdChip";
 
 const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
@@ -9,91 +10,104 @@ const STATUSES = ["Not Started", "On Track", "Completed"];
 
 function currentQuarter() {
   const m = new Date().getMonth() + 1;
-  if (m <= 3) return "Q1";
-  if (m <= 6) return "Q2";
-  if (m <= 9) return "Q3";
-  return "Q4";
+  if (m <= 3) return "Q1"; if (m <= 6) return "Q2";
+  if (m <= 9) return "Q3"; return "Q4";
 }
 
-const STATUS_BADGE = {
-  "Not Started": "bg-slate-100 text-slate-700",
-  "On Track":    "bg-amber-100 text-amber-800",
-  "Completed":   "bg-emerald-100 text-emerald-800",
+const STATUS_STYLES = {
+  "Not Started": { badge: "badge-draft",     dot: "#94a3b8" },
+  "On Track":    { badge: "badge-submitted", dot: "#f59e0b" },
+  "Completed":   { badge: "badge-locked",    dot: "#10b981" },
 };
+
+function ScoreRing({ score, size = 64 }) {
+  const r = (size - 8) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.min(score, 100) / 100) * circ;
+  const color = score >= 80 ? "#10b981" : score >= 50 ? "#f59e0b" : "#6366f1";
+  return (
+    <svg width={size} height={size}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={7} />
+      <circle className="progress-ring" cx={size/2} cy={size/2} r={r}
+        fill="none" stroke={color} strokeWidth={7}
+        strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
+        style={{ transition: "stroke-dashoffset .6s ease" }} />
+      <text x="50%" y="54%" dominantBaseline="middle" textAnchor="middle"
+        fontSize="12" fontWeight="800" fill={color}>{score.toFixed(0)}</text>
+    </svg>
+  );
+}
 
 export default function EmployeeCheckin() {
   const { id } = useParams();
-  const nav = useNavigate();
-
-  const [data, setData] = useState(null);
+  const nav    = useNavigate();
+  const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
+  const [err, setErr]       = useState("");
 
   async function load() {
-    setLoading(true);
-    setErr("");
-    try {
-      const res = await api(`/sheets/${id}/progress`);
-      setData(res);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setErr("");
+    try { setData(await api(`/sheets/${id}/progress`)); }
+    catch (e) { setErr(e.message); }
+    finally { setLoading(false); }
   }
-
   useEffect(() => { load(); }, [id]);
 
-  if (loading) return <div className="p-8 text-slate-500">Loading sheet...</div>;
-  if (!data)   return <div className="p-8 text-red-600">{err || "Unable to load"}</div>;
+  if (loading) return (
+    <Layout title="Check-in">
+      <div className="flex items-center gap-3 text-slate-500 py-20 justify-center">
+        <Loader2 className="animate-spin-slow" size={22} /> Loading…
+      </div>
+    </Layout>
+  );
+  if (!data) return (
+    <Layout title="Check-in">
+      <div className="alert alert-err"><AlertCircle size={16}/>{err || "Unable to load"}</div>
+    </Layout>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <button
-            onClick={() => nav("/employee")}
-            className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900"
-          >
-            <ArrowLeft size={16} /> Back to dashboard
-          </button>
-          <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
-            <Lock size={12} /> {data.status}
-          </span>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-        <div className="bg-white border border-slate-200 rounded-2xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900">FY {data.year}</h1>
-              <div className="text-sm text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                <span>Track your quarterly progress</span>
-                <span className="text-slate-300">&middot;</span>
-                <IdChip id={data.sheet_id} label="Sheet" />
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Overall score</p>
-              <p className="text-3xl font-semibold text-indigo-600">{data.overall_score.toFixed(1)}</p>
-            </div>
+    <Layout
+      title={`FY ${data.year} — Check-ins`}
+      actions={
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200">
+            <Lock size={12} /> Locked
           </div>
+          <button onClick={() => nav("/employee")} className="btn btn-ghost text-xs">← Back</button>
         </div>
-
-        {err && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {err}
-          </p>
-        )}
-
-        <div className="space-y-4">
-          {data.goals.map((g) => (
-            <GoalCard key={g.id} goal={g} onLogged={load} />
-          ))}
+      }
+    >
+      {/* Overall score hero */}
+      <div className="card p-6 mb-6 flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">Overall Score</p>
+          <div className="score-pill">
+            {data.overall_score.toFixed(1)} <small>/ 100</small>
+          </div>
+          <p className="text-sm text-slate-500 mt-1">Weighted average across all goals</p>
         </div>
-      </main>
-    </div>
+        <div className="flex gap-2">
+          {QUARTERS.map(q => {
+            const allDone = data.goals.every(g => g.checkins.some(c => c.qtr === q && c.actual !== null));
+            return (
+              <div key={q} className={`text-center px-3 py-2 rounded-xl border text-xs font-bold ${
+                allDone ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"
+              }`}>
+                {q}
+                <p className="font-normal mt-0.5">{allDone ? "✓" : "—"}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {err && <div className="alert alert-err mb-4"><AlertCircle size={16}/>{err}</div>}
+
+      <div className="space-y-4 stagger">
+        {data.goals.map(g => <GoalCard key={g.id} goal={g} onLogged={load} />)}
+      </div>
+    </Layout>
   );
 }
 
@@ -106,123 +120,96 @@ function GoalCard({ goal, onLogged }) {
 
   async function submit(e) {
     e.preventDefault();
-    setBusy(true);
-    setErr("");
+    setBusy(true); setErr("");
     try {
-      await api(`/goals/${goal.id}/checkins`, {
-        method: "POST",
-        body: { qtr, actual: Number(actual), status },
-      });
-      setActual("");
-      onLogged();
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+      await api(`/goals/${goal.id}/checkins`, { method:"POST", body:{ qtr, actual:Number(actual), status }});
+      setActual(""); onLogged();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
   }
 
-  const sorted = [...goal.checkins].sort(
-    (a, b) => QUARTERS.indexOf(a.qtr) - QUARTERS.indexOf(b.qtr)
-  );
+  const sorted = [...goal.checkins].sort((a,b) => QUARTERS.indexOf(a.qtr)-QUARTERS.indexOf(b.qtr));
+  const isShared = !!goal.source_goal_id;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-            <Target size={18} />
+    <div className="card p-5 animate-fade-up">
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-indigo-50 rounded-xl shrink-0">
+            <Target size={18} style={{ color:"#6366f1" }} />
           </div>
-          <div className="min-w-0">
-            <p className="text-base font-medium text-slate-900">{goal.title}</p>
-            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
-              <span>UOM: {goal.uom} &middot; Target: {goal.target} &middot; Weight: {goal.weight}%</span>
-              <IdChip id={goal.id} label="Goal" />
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-slate-900">{goal.title}</p>
+              {isShared && <span className="badge badge-submitted" style={{fontSize:10}}>Shared</span>}
             </div>
+            <p className="text-xs text-slate-500 mt-0.5">UoM: {goal.uom} · Target: {goal.target} · Weight: {goal.weight}%</p>
+            <IdChip id={goal.id} label="Goal" />
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm bg-slate-50 px-3 py-1.5 rounded-lg">
-          <TrendingUp size={14} className="text-indigo-500" />
-          <span className="text-slate-600">Score</span>
-          <span className="font-semibold text-slate-900">{goal.score.toFixed(1)}</span>
+        <div className="shrink-0 flex flex-col items-center">
+          <ScoreRing score={goal.score} />
+          <p className="text-xs text-slate-500 mt-1">Score</p>
         </div>
       </div>
 
-      {sorted.length > 0 && (
-        <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {QUARTERS.map((q) => {
-            const c = sorted.find((x) => x.qtr === q);
-            return (
-              <div
-                key={q}
-                className={`p-2.5 rounded-lg border text-center ${
-                  c ? "bg-slate-50 border-slate-200" : "bg-white border-dashed border-slate-200"
-                }`}
-              >
-                <p className="text-xs font-medium text-slate-500">{q}</p>
-                {c ? (
-                  <>
-                    <p className="text-sm font-semibold text-slate-900 mt-0.5">{c.actual}</p>
-                    <span className={`inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded ${STATUS_BADGE[c.status]}`}>
-                      {c.status}
-                    </span>
-                    <div className="mt-1.5">
-                      <IdChip id={c.id} />
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-xs text-slate-400 mt-1">—</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      {/* Quarter cards */}
+      <div className="grid grid-cols-4 gap-2 mb-5">
+        {QUARTERS.map(q => {
+          const c = sorted.find(x => x.qtr === q);
+          return (
+            <div key={q} className={`rounded-xl border p-3 text-center transition-all ${
+              c ? "bg-slate-50 border-slate-200" : "bg-white border-dashed border-slate-200"
+            }`}>
+              <p className="text-xs font-bold text-slate-500">{q}</p>
+              {c ? (
+                <>
+                  <p className="text-base font-extrabold text-slate-900 mt-1">{c.actual}</p>
+                  <span className={`badge ${STATUS_STYLES[c.status]?.badge || "badge-draft"}`} style={{fontSize:9}}>
+                    {c.status}
+                  </span>
+                  <div className="mt-1.5"><IdChip id={c.id} /></div>
+                </>
+              ) : (
+                <p className="text-xl text-slate-300 mt-1">—</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Log form */}
+      {!isShared && (
+        <form onSubmit={submit} className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Quarter</label>
+            <select className="input" value={qtr} onChange={e => setQtr(e.target.value)}>
+              {QUARTERS.map(q => <option key={q}>{q}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Actual</label>
+            <input className="input" type="number" step="any" required value={actual}
+              onChange={e => setActual(e.target.value)} placeholder="0" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
+            <select className="input" value={status} onChange={e => setStatus(e.target.value)}>
+              {STATUSES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button type="submit" disabled={busy} className="btn btn-primary w-full justify-center">
+              {busy ? <Loader2 size={14} className="animate-spin-slow" /> : <TrendingUp size={14} />}
+              Log
+            </button>
+          </div>
+          {err && <p className="col-span-4 text-xs text-red-600">{err}</p>}
+        </form>
       )}
-
-      <form onSubmit={submit} className="grid gap-3 sm:grid-cols-4 items-end pt-4 border-t border-slate-100">
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Quarter</label>
-          <select
-            value={qtr}
-            onChange={(e) => setQtr(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {QUARTERS.map((q) => <option key={q} value={q}>{q}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Actual</label>
-          <input
-            type="number"
-            step="any"
-            required
-            value={actual}
-            onChange={(e) => setActual(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <button
-          type="submit"
-          disabled={busy}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-60"
-        >
-          {busy ? "Saving..." : "Log Progress"}
-        </button>
-      </form>
-
-      {err && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-3">
-          {err}
+      {isShared && (
+        <p className="text-xs text-amber-600 pt-3 border-t border-slate-100">
+          This is a shared goal — actuals are logged by the primary owner and sync automatically.
         </p>
       )}
     </div>

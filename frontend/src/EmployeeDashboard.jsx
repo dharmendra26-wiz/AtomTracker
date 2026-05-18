@@ -1,59 +1,64 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, LogOut } from "lucide-react";
+import { FileText, Plus, TrendingUp, Clock, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { api } from "./api";
 import { useAuth } from "./AuthContext";
+import Layout from "./Layout";
 import IdChip from "./IdChip";
 
-const STATUS_STYLES = {
-  Draft:     "bg-slate-100 text-slate-700",
-  Submitted: "bg-amber-100 text-amber-800",
-  Locked:    "bg-emerald-100 text-emerald-800",
+const STATUS_INFO = {
+  Draft:     { cls: "badge-draft",     label: "Draft",     icon: Clock },
+  Submitted: { cls: "badge-submitted", label: "Submitted", icon: TrendingUp },
+  Locked:    { cls: "badge-locked",    label: "Locked",    icon: CheckCircle2 },
 };
 
+function ProgressRing({ pct, size = 56, stroke = 5 }) {
+  const r = (size - stroke * 2) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.min(pct, 100) / 100) * circ;
+  const color = pct === 100 ? "#10b981" : pct > 100 ? "#ef4444" : "#6366f1";
+  return (
+    <svg width={size} height={size}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+      <circle
+        className="progress-ring"
+        cx={size/2} cy={size/2} r={r}
+        fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{ transition: "stroke-dashoffset .6s ease, stroke .3s" }}
+      />
+      <text x="50%" y="54%" dominantBaseline="middle" textAnchor="middle"
+        fontSize="11" fontWeight="700" fill={color}>
+        {Math.round(pct)}%
+      </text>
+    </svg>
+  );
+}
+
 export default function EmployeeDashboard() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const nav = useNavigate();
-
-  const [sheets, setSheets] = useState([]);
+  const [sheets, setSheets]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-
-  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [err, setErr]         = useState("");
+  const [year, setYear]       = useState(String(new Date().getFullYear()));
   const [creating, setCreating] = useState(false);
 
   async function load() {
-    setLoading(true);
-    setErr("");
-    try {
-      const data = await api("/my-sheets");
-      setSheets(data);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setErr("");
+    try { setSheets(await api("/my-sheets")); }
+    catch (e) { setErr(e.message); }
+    finally { setLoading(false); }
   }
-
   useEffect(() => { load(); }, []);
 
   async function createSheet(e) {
     e.preventDefault();
-    setCreating(true);
-    setErr("");
-    try {
-      await api("/sheets", { method: "POST", body: { year } });
-      await load();
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  function signOut() {
-    logout();
-    nav("/login", { replace: true });
+    setCreating(true); setErr("");
+    try { await api("/sheets", { method: "POST", body: { year } }); await load(); }
+    catch (e) { setErr(e.message); }
+    finally { setCreating(false); }
   }
 
   function openSheet(s) {
@@ -61,103 +66,105 @@ export default function EmployeeDashboard() {
     nav(`/employee/${path}/${s.id}`);
   }
 
+  // Stats
+  const total     = sheets.length;
+  const locked    = sheets.filter(s => s.status === "Locked").length;
+  const submitted = sheets.filter(s => s.status === "Submitted").length;
+  const draft     = sheets.filter(s => s.status === "Draft").length;
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">AtomTracker</h1>
-            <p className="text-sm text-slate-500">Welcome back, {user?.name || "there"}</p>
-          </div>
-          <button
-            onClick={signOut}
-            className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100"
-          >
-            <LogOut size={16} /> Sign out
+    <Layout
+      title={`Good day, ${user?.name?.split(" ")[0] || "there"} 👋`}
+      actions={
+        <form onSubmit={createSheet} className="flex items-center gap-2">
+          <input
+            className="input" style={{ width: 96 }}
+            type="text" value={year}
+            onChange={(e) => setYear(e.target.value)}
+            pattern="\d{4}" placeholder="Year"
+          />
+          <button type="submit" disabled={creating} className="btn btn-primary">
+            {creating ? <Loader2 size={15} className="animate-spin-slow" /> : <Plus size={15} />}
+            New Sheet
           </button>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 mb-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-3">Start a new goal sheet</h2>
-          <form onSubmit={createSheet} className="flex items-end gap-3 flex-wrap">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Year</label>
-              <input
-                type="text"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                pattern="\d{4}"
-                required
-                className="w-32 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+        </form>
+      }
+    >
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger">
+        {[
+          { label: "Total Sheets",   value: total,     color: "indigo", icon: FileText },
+          { label: "Draft",          value: draft,     color: "slate",  icon: Clock },
+          { label: "Submitted",      value: submitted, color: "amber",  icon: TrendingUp },
+          { label: "Locked",         value: locked,    color: "green",  icon: CheckCircle2 },
+        ].map(({ label, value, color, icon: Icon }) => {
+          const colors = {
+            indigo: { bg: "#ede9fe", fg: "#6d28d9" },
+            slate:  { bg: "#f1f5f9", fg: "#475569" },
+            amber:  { bg: "#fef3c7", fg: "#d97706" },
+            green:  { bg: "#d1fae5", fg: "#059669" },
+          }[color];
+          return (
+            <div key={label} className="stat-card animate-fade-up card">
+              <div className="flex items-center justify-between">
+                <span className="label">{label}</span>
+                <div className="p-2 rounded-lg" style={{ background: colors.bg }}>
+                  <Icon size={16} style={{ color: colors.fg }} />
+                </div>
+              </div>
+              <div className="value" style={{ color: colors.fg }}>{value}</div>
             </div>
-            <button
-              type="submit"
-              disabled={creating}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-60"
-            >
-              <Plus size={16} /> {creating ? "Creating..." : "Create Sheet"}
-            </button>
-          </form>
-        </section>
+          );
+        })}
+      </div>
 
-        <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-3">My goal sheets</h2>
+      {err && <div className="alert alert-err mb-6"><AlertCircle size={16} />{err}</div>}
 
-          {err && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
-              {err}
-            </p>
-          )}
-
-          {loading ? (
-            <p className="text-slate-500">Loading...</p>
-          ) : sheets.length === 0 ? (
-            <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500">
-              No sheets yet. Create one above to get started.
-            </div>
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {sheets.map((s) => (
-                <li key={s.id}>
-                  <button
-                    onClick={() => openSheet(s)}
-                    className="w-full text-left block bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-400 hover:shadow-sm transition"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                          <FileText size={20} />
-                        </div>
-                        <div>
-                          <p className="text-base font-medium text-slate-900">FY {s.year}</p>
-                          <div className="mt-0.5">
-                            <IdChip id={s.id} label="Sheet" />
-                          </div>
-                        </div>
-                      </div>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                        s.reject_comment && s.status === "Draft"
-                          ? "bg-amber-100 text-amber-800"
-                          : (STATUS_STYLES[s.status] || "bg-slate-100 text-slate-700")
-                      }`}>
-                        {s.reject_comment && s.status === "Draft" ? "Returned for rework" : s.status}
-                      </span>
+      {/* Sheets list */}
+      <div>
+        <h2 className="text-base font-bold text-slate-800 mb-4">My Goal Sheets</h2>
+        {loading ? (
+          <div className="flex items-center gap-3 text-slate-500 py-12 justify-center">
+            <Loader2 className="animate-spin-slow" size={22} /> Loading…
+          </div>
+        ) : sheets.length === 0 ? (
+          <div className="card text-center py-16 text-slate-400 animate-fade-in">
+            <FileText size={40} className="mx-auto mb-3 opacity-30" />
+            <p className="font-medium">No sheets yet</p>
+            <p className="text-sm mt-1">Use the "New Sheet" button above to get started.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger">
+            {sheets.map((s) => {
+              const info = STATUS_INFO[s.status] || STATUS_INFO.Draft;
+              const isRework = s.reject_comment && s.status === "Draft";
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => openSheet(s)}
+                  className="card card-lift text-left p-5 animate-fade-up w-full"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-2.5 rounded-xl" style={{ background: "#ede9fe" }}>
+                      <FileText size={20} style={{ color: "#6d28d9" }} />
                     </div>
-                    {s.reject_comment && s.status === "Draft" && (
-                      <p className="text-xs text-amber-700 mt-2 italic truncate">
-                        "{s.reject_comment}"
-                      </p>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </main>
-    </div>
+                    <span className={`badge ${isRework ? "badge-submitted" : info.cls}`}>
+                      {isRework ? "Needs Rework" : info.label}
+                    </span>
+                  </div>
+                  <p className="text-xl font-bold text-slate-900 mb-1">FY {s.year}</p>
+                  <IdChip id={s.id} label="Sheet" />
+                  {isRework && (
+                    <p className="text-xs text-amber-700 mt-2 bg-amber-50 px-2 py-1.5 rounded-lg truncate">
+                      ↩ {s.reject_comment}
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Layout>
   );
 }
