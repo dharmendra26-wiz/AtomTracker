@@ -7,12 +7,14 @@ const BASE = import.meta.env.VITE_API_URL || "/api";
 const ROLE_HOME = { Employee: "/employee", Manager: "/manager", Admin: "/admin" };
 
 const DEMOS = [
-  { label: "Employee",  email: "employee@test.com", password: "employee",
-    color: "#6366f1", desc: "Create & track goals" },
-  { label: "Manager",   email: "manager@test.com",  password: "manager",
-    color: "#f59e0b", desc: "Approve & review team" },
-  { label: "Admin / HR", email: "admin@test.com",   password: "admin",
-    color: "#10b981", desc: "Full system control" },
+  { label: "Employee (Rahul)",  email: "employee@test.com", password: "employee",
+    color: "#6366f1", desc: "FY2026 Locked sheet + Q1/Q2 check-ins done" },
+  { label: "Employee (Sneha)", email: "sneha@test.com",    password: "employee2",
+    color: "#a78bfa", desc: "FY2026 sheet submitted — waiting for review" },
+  { label: "Manager",          email: "manager@test.com",  password: "manager",
+    color: "#f59e0b", desc: "Approve Sneha's sheet, view team scores" },
+  { label: "Admin / HR",       email: "admin@test.com",    password: "admin",
+    color: "#10b981", desc: "Full system control — analytics & audit" },
 ];
 
 export default function LoginPage() {
@@ -27,10 +29,15 @@ export default function LoginPage() {
   const [warming, setWarming] = useState(true);
 
   // Ping backend on mount so Render wakes up before the user clicks login
+  // Also trigger /setup-demo to ensure all demo data is pre-seeded
   useEffect(() => {
     setWarming(true);
     fetch(`${BASE}/`, { signal: AbortSignal.timeout(35000) })
-      .then(() => setWarm(true))
+      .then(() => {
+        setWarm(true);
+        // Seed demo data silently — idempotent so safe to call every time
+        fetch(`${BASE}/setup-demo`).catch(() => {});
+      })
       .catch(() => setWarm(false))
       .finally(() => setWarming(false));
   }, []);
@@ -171,7 +178,7 @@ export default function LoginPage() {
                 ))}
               </div>
               <p className="text-xs text-slate-400 text-center mt-3">
-                Hit <code className="bg-slate-100 px-1 rounded">GET /setup-demo</code> on the API to seed demo users.
+                Demo data is pre-seeded automatically — just click any button above.
               </p>
             </div>
           </div>

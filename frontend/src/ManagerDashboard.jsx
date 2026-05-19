@@ -6,6 +6,7 @@ import { useAuth } from "./AuthContext";
 import Layout from "./Layout";
 import IdChip from "./IdChip";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import OnboardingModal from "./OnboardingModal";
 
 const STATUS_INFO = {
   Submitted: { cls: "badge-submitted", label: "Submitted" },
@@ -78,6 +79,8 @@ export default function ManagerDashboard() {
     : [];
 
   return (
+    <>
+    <OnboardingModal role="Manager" />
     <Layout
       title={pageTitle}
       actions={<span className="text-sm text-slate-500">Signed in as {user?.name}</span>}
@@ -199,5 +202,6 @@ export default function ManagerDashboard() {
         </div>
       )}
     </Layout>
+    </>
   );
 }

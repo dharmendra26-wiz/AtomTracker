@@ -11,6 +11,7 @@ import {
 import { api, downloadBlob } from "./api";
 import { useAuth } from "./AuthContext";
 import Layout from "./Layout";
+import OnboardingModal from "./OnboardingModal";
 
 const ROLE_COLORS  = { Employee:"#6366f1", Manager:"#f59e0b", Admin:"#10b981" };
 const STATUS_COLORS = { Draft:"#94a3b8", Submitted:"#f59e0b", Locked:"#10b981" };
@@ -105,6 +106,7 @@ export default function AdminDashboard() {
         </div>
       }
     >
+      <OnboardingModal role="Admin" />
       {err && <div className="alert alert-err mb-6"><AlertCircle size={16}/>{err}</div>}
 
       {/* ── OVERVIEW section ── */}

@@ -5,6 +5,7 @@ import { api } from "./api";
 import { useAuth } from "./AuthContext";
 import Layout from "./Layout";
 import IdChip from "./IdChip";
+import OnboardingModal from "./OnboardingModal";
 
 const STATUS_INFO = {
   Draft:     { cls: "badge-draft",     label: "Draft",     icon: Clock },
@@ -99,6 +100,8 @@ export default function EmployeeDashboard() {
     : sheets;
 
   return (
+    <>
+    <OnboardingModal role="Employee" />
     <Layout
       title={viewTitle || `Good day, ${user?.name?.split(" ")[0] || "there"} 👋`}
       actions={
@@ -210,5 +213,6 @@ export default function EmployeeDashboard() {
         )}
       </div>
     </Layout>
+    </>
   );
 }
