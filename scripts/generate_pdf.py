@@ -85,7 +85,7 @@ def cover(pdf):
     # Subtitle
     c.setFillColor(LILAC); c.setFont("Helvetica", 10.5)
     c.drawString(30*mm, H-108, "In-House Goal Setting & Tracking Portal")
-    c.drawString(30*mm, H-121, "100% weight enforcement  |  Quarterly scoring  |  JWT RBAC  |  Audit trail")
+    c.drawString(30*mm, H-121, "100% weight enforcement  |  Quarterly scoring  |  JWT RBAC  |  Feedback threads  |  Audit trail")
 
     # ── 3 link cards (solid, high-contrast) ─────────────────
     links = [
@@ -127,13 +127,14 @@ def cover(pdf):
 
     # ── Demo credentials ────────────────────────────────────
     cred_y = H-380
-    rr(c, 30*mm, cred_y-56, W-60*mm, 66, r=6, fill=COVER_CARD, stroke=COVER_BORD, lw=1)
+    rr(c, 30*mm, cred_y-74, W-60*mm, 84, r=6, fill=COVER_CARD, stroke=COVER_BORD, lw=1)
     c.setFillColor(PERIWINKLE); c.setFont("Helvetica-Bold", 8)
-    c.drawString(33*mm, cred_y, "DEMO LOGIN CREDENTIALS  (one-click buttons also on login page)")
+    c.drawString(33*mm, cred_y, "DEMO LOGIN CREDENTIALS  (one-click buttons on login page — data auto-seeded)")
     rows = [
-        ("Admin",    "admin@test.com",    "admin",   "#10b981","#d1fae5"),
-        ("Manager",  "manager@test.com",  "manager", "#f59e0b","#fef3c7"),
-        ("Employee", "employee@test.com", "employee","#6366f1","#ede9fe"),
+        ("Admin",    "admin@test.com",    "admin",     "#10b981","#d1fae5"),
+        ("Manager",  "manager@test.com",  "manager",   "#f59e0b","#fef3c7"),
+        ("Rahul",    "employee@test.com", "employee",  "#6366f1","#ede9fe"),
+        ("Sneha",    "sneha@test.com",    "employee2", "#8b5cf6","#ede9fe"),
     ]
     ry = cred_y - 16
     for role, email, pw, dot, bg in rows:
@@ -296,22 +297,24 @@ def build():
     p.link_card("Source Code Repository (GitHub)",   "https://github.com/dharmendra26-wiz/AtomTracker","G")
     p.link_card("Backend API (FastAPI on Render)",   "https://atomtracker.onrender.com",               "A")
     p.link_card("Interactive API Docs (Swagger UI)", "https://atomtracker.onrender.com/docs",           "D")
-    p.warn("! First load may take ~30 s — backend sleeps on Render free tier. App auto-retries until online.")
+    p.warn("! First load ~30 s — backend sleeps on Render free tier. Login page waits automatically and seeds demo data before enabling login.")  
 
     # 2. Problem
     p.section(2, "Problem Statement & Solution")
     p.para("Atomberg's goal-setting ran on fragile Excel sheets: no weight validation, no audit trail, no digital "
            "manager review cycle. AtomTracker is the structured, role-based digital replacement.")
     p.gap(4)
+    i = 0
     features = [
         ("Goal Setting (100% Weight)",  "Up to 8 goals. Total weight enforced at 100%. Min/Max/Zero/Timeline UoMs with auto scoring."),
         ("Manager Approval Flow",        "Review, inline-edit target/weight, approve & lock, or return with a rework comment."),
         ("Quarterly Check-ins",          "Employees log Q1-Q4 actuals on locked sheets. Scores computed per UoM automatically."),
+        ("Feedback Thread",              "Private chat per sheet between employee and manager — keeps all goal discussion in one place."),
         ("Tamper-Evident Audit Trail",   "Every change logged with old/new value, timestamp, actor. Admin searches by UUID."),
         ("Cascaded Shared Goals",        "Admin pushes a goal to multiple employees. Copies sync actuals from the primary owner."),
         ("Org Analytics & CSV Export",   "Users by role, sheets by status, QoQ score trend, completion matrix, CSV export."),
+        ("Role-Based Onboarding Tour",   "6-step guided modal on first login per role — walks judges through every feature automatically."),
     ]
-    i = 0
     while i < len(features):
         p.need(44)
         rx = p.feat(features[i][0], features[i][1])
@@ -345,7 +348,7 @@ def build():
         ("Manager returns sheet with rework comment",           "YES", "POST /sheets/{id}/reject"),
         ("Manager inline edits target/weight pre-approval",     "YES", "POST /goals/{id}/override"),
         ("Quarterly check-ins with auto-scored UoMs",           "YES", "POST /goals/{id}/checkins"),
-        ("Manager comments on a specific check-in",             "YES", "POST /checkins/{id}/comment"),
+        ("Manager <-> Employee feedback thread per sheet",      "YES", "GET+POST /sheets/{id}/comments"),
         ("Shared/cascaded goals (actuals sync from primary)",   "YES", "POST /goals/{id}/cascade"),
         ("Admin override of locked goals + audit trail",        "YES", "POST /goals/{id}/override"),
         ("Per-employee x quarter completion matrix",            "YES", "GET /completion"),
