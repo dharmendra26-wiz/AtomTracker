@@ -7,6 +7,7 @@ import {
 import { api } from "./api";
 import Layout from "./Layout";
 import IdChip from "./IdChip";
+import SheetComments from "./SheetComments";
 
 const UOMS = ["Min", "Max", "Timeline", "Zero"];
 const UOM_DESC = {
@@ -224,6 +225,9 @@ export default function SheetDetail() {
           </form>
         </div>
       )}
+
+      {/* Feedback thread — employee ↔ manager */}
+      <SheetComments sheetId={id} />
     </Layout>
   );
 }

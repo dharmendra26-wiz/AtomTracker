@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, Lock, Target, RotateCcw, Check, Pencil, Share2
 import { api } from "./api";
 import Layout from "./Layout";
 import IdChip from "./IdChip";
+import SheetComments from "./SheetComments";
 
 export default function ManagerSheetDetail() {
   const { id } = useParams();
@@ -154,6 +155,9 @@ export default function ManagerSheetDetail() {
           </table>
         </div>
       </div>
+
+      {/* Feedback thread — manager ↔ employee */}
+      <SheetComments sheetId={id} />
     </Layout>
   );
 }

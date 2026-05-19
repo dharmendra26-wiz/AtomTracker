@@ -124,3 +124,16 @@ class AuditLog(Base):
     timestamp = Column(DateTime, nullable=False, default=utcnow)
 
     user = relationship("User")
+
+
+class SheetComment(Base):
+    __tablename__ = "sheet_comments"
+
+    id = Column(String, primary_key=True, default=new_id)
+    sheet_id = Column(String, ForeignKey("sheets.id"), nullable=False)
+    author_id = Column(String, ForeignKey("users.id"), nullable=False)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+
+    author = relationship("User")
+    sheet = relationship("GoalSheet")

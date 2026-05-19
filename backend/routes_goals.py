@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User, GoalSheet, Goal, AuditLog, SheetStatus, UOM, Role
+from models import User, GoalSheet, Goal, AuditLog, SheetStatus, UOM, Role, SheetComment
 from auth import get_curr_user, require_role
 
 router = APIRouter()
@@ -383,3 +383,98 @@ def reject_sheet(
 
     db.commit()
     return {"msg": "Sheet returned for rework", "sheet_id": sheet.id, "status": sheet.status.value}
+
+
+# -------------------- Sheet Comments (Manager <-> Employee Feedback) --------------------
+
+class CommentCreate(BaseModel):
+    text: str
+
+
+class CommentOut(BaseModel):
+    id: str
+    sheet_id: str
+    author_id: str
+    author_name: str
+    author_role: str
+    text: str
+    created_at: str
+
+
+@router.get("/sheets/{sheet_id}/comments", response_model=List[CommentOut])
+def get_comments(
+    sheet_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_curr_user),
+):
+    """Fetch all comments for a sheet. Accessible by the sheet owner and their manager."""
+    sheet = db.query(GoalSheet).filter(GoalSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(404, "Sheet not found")
+
+    # Access check: sheet owner, their manager, or Admin
+    owner = db.query(User).filter(User.id == sheet.user_id).first()
+    if user.role.value == "Employee" and sheet.user_id != user.id:
+        raise HTTPException(403, "Not your sheet")
+    if user.role.value == "Manager" and owner and owner.mgr_id != user.id:
+        raise HTTPException(403, "This employee does not report to you")
+
+    comments = (
+        db.query(SheetComment)
+        .filter(SheetComment.sheet_id == sheet_id)
+        .order_by(SheetComment.created_at.asc())
+        .all()
+    )
+    return [
+        CommentOut(
+            id=c.id,
+            sheet_id=c.sheet_id,
+            author_id=c.author_id,
+            author_name=c.author.name,
+            author_role=c.author.role.value,
+            text=c.text,
+            created_at=c.created_at.isoformat(),
+        )
+        for c in comments
+    ]
+
+
+@router.post("/sheets/{sheet_id}/comments", response_model=CommentOut)
+def add_comment(
+    sheet_id: str,
+    body: CommentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_curr_user),
+):
+    """Post a comment on a sheet (employee or manager)."""
+    if not body.text or not body.text.strip():
+        raise HTTPException(400, "Comment text cannot be empty")
+
+    sheet = db.query(GoalSheet).filter(GoalSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(404, "Sheet not found")
+
+    owner = db.query(User).filter(User.id == sheet.user_id).first()
+    if user.role.value == "Employee" and sheet.user_id != user.id:
+        raise HTTPException(403, "Not your sheet")
+    if user.role.value == "Manager" and owner and owner.mgr_id != user.id:
+        raise HTTPException(403, "This employee does not report to you")
+
+    comment = SheetComment(
+        sheet_id=sheet_id,
+        author_id=user.id,
+        text=body.text.strip(),
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+
+    return CommentOut(
+        id=comment.id,
+        sheet_id=comment.sheet_id,
+        author_id=comment.author_id,
+        author_name=comment.author.name,
+        author_role=comment.author.role.value,
+        text=comment.text,
+        created_at=comment.created_at.isoformat(),
+    )
