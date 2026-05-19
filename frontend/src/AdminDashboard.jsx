@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Users, FileText, Target, Search, X, History, Download,
   Share2, CalendarCheck, ArrowRight, BarChart2, Loader2, AlertCircle,
@@ -19,6 +19,12 @@ const Q_COLORS      = ["#6366f1","#8b5cf6","#a78bfa","#c4b5fd"];
 export default function AdminDashboard() {
   const { user }  = useAuth();
   const nav       = useNavigate();
+  const { pathname } = useLocation();
+
+  // Determine active section from route
+  const section = pathname.startsWith("/admin/analytics") ? "analytics"
+                : pathname.startsWith("/admin/audit")     ? "audit"
+                : "overview";
   const [analytics, setAnalytics]   = useState(null);
   const [qoq, setQoq]               = useState(null);
   const [completion, setCompletion] = useState(null);
@@ -80,23 +86,29 @@ export default function AdminDashboard() {
 
   return (
     <Layout
-      title="Admin Console"
+      title={
+        section === "analytics" ? "Analytics" :
+        section === "audit"     ? "Audit Trail" :
+        "Admin Overview"
+      }
       actions={
         <div className="flex gap-2">
           <button onClick={() => nav("/admin/users")} className="btn btn-ghost text-xs">
             <Users size={14}/> Manage Users
           </button>
-          <button onClick={doDownload} disabled={downloading} className="btn btn-success text-xs">
-            {downloading ? <Loader2 size={14} className="animate-spin-slow"/> : <Download size={14}/>}
-            Export CSV
-          </button>
+          {section !== "audit" && (
+            <button onClick={doDownload} disabled={downloading} className="btn btn-success text-xs">
+              {downloading ? <Loader2 size={14} className="animate-spin-slow"/> : <Download size={14}/>}
+              Export CSV
+            </button>
+          )}
         </div>
       }
     >
       {err && <div className="alert alert-err mb-6"><AlertCircle size={16}/>{err}</div>}
 
-      {/* ── Totals ── */}
-      {analytics && (
+      {/* ── OVERVIEW section ── */}
+      {section === "overview" && analytics && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8 stagger">
           {[
             { label:"Total Users",  value: analytics.totals.users,  icon: Users,     color:"indigo" },
@@ -119,8 +131,8 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── Charts row ── */}
-      {analytics && (
+      {/* ── ANALYTICS section ── */}
+      {section === "analytics" && analytics && (
         <div className="grid lg:grid-cols-3 gap-4 mb-8">
           {/* Users by Role donut */}
           <div className="card p-5">
@@ -172,8 +184,8 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── Completion Dashboard ── */}
-      <section className="mb-10">
+      {/* ── OVERVIEW: Completion Dashboard ── */}
+      {section === "overview" && <section className="mb-10">
         <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
             <CalendarCheck size={18} style={{ color:"#6366f1" }}/>
@@ -243,13 +255,13 @@ export default function AdminDashboard() {
             </div>
           </>
         )}
-      </section>
+      </section>}
 
-      {/* ── Cascade ── */}
-      <CascadeSection />
+      {/* ── OVERVIEW: Cascade ── */}
+      {section === "overview" && <CascadeSection />}
 
-      {/* ── Audit Trail ── */}
-      <section>
+      {/* ── AUDIT section ── */}
+      {section === "audit" && <section>
         <div className="flex items-center gap-2 mb-2">
           <History size={18} style={{ color:"#6366f1" }}/>
           <h2 className="font-bold text-slate-900">Audit Trail</h2>
@@ -290,7 +302,7 @@ export default function AdminDashboard() {
             </table>
           </div>
         )}
-      </section>
+      </section>}
     </Layout>
   );
 }
