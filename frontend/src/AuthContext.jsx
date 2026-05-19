@@ -21,6 +21,7 @@ function loadFromStorage() {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadFromStorage);
 
+  // Clear storage when user is null
   useEffect(() => {
     if (!user) {
       sessionStorage.removeItem("token");
@@ -28,6 +29,13 @@ export function AuthProvider({ children }) {
       sessionStorage.removeItem("role");
     }
   }, [user]);
+
+  // Auto-logout when api.js detects a stale token (DB wiped & re-seeded)
+  useEffect(() => {
+    function onExpired() { setUser(null); }
+    window.addEventListener("auth:expired", onExpired);
+    return () => window.removeEventListener("auth:expired", onExpired);
+  }, []);
 
   async function login(email, password) {
     const res = await api("/login", { method: "POST", body: { email, password }, auth: false });

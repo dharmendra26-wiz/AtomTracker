@@ -28,9 +28,17 @@ export default function LoginPage() {
   const [warm, setWarm] = useState(false);
   const [warming, setWarming] = useState(true);
 
-  // Call /setup-demo on mount — this wakes the server AND seeds all demo users in one request.
-  // Login buttons stay disabled until this completes so judges can never hit "user not found".
+  // On login page mount: wipe ALL stale tokens (localStorage leftovers from
+  // before the sessionStorage migration, and any stale sessionStorage tokens).
+  // Then call /setup-demo which wakes the server and seeds fresh demo users.
+  // Login buttons stay disabled until this finishes — prevents "User not found".
   useEffect(() => {
+    // Nuclear cleanup of any stale tokens
+    ["token", "name", "role"].forEach(k => {
+      localStorage.removeItem(k);
+      sessionStorage.removeItem(k);
+    });
+
     setWarming(true);
     fetch(`${BASE}/setup-demo`, { signal: AbortSignal.timeout(40000) })
       .then(r => r.ok ? setWarm(true) : setWarm(false))

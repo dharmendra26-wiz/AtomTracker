@@ -7,7 +7,7 @@ const BASE = IS_DEV
   : "/api";
 
 function getToken() {
-  return localStorage.getItem("token");
+  return sessionStorage.getItem("token");
 }
 
 /** Returns true for any network-level failure (server asleep, CORS preflight timeout, etc.) */
@@ -59,7 +59,13 @@ export async function api(path, { method = "GET", body, auth = true } = {}) {
 
     if (!res.ok) {
       const msg = data?.detail || `Request failed (${res.status})`;
-      throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+      const msgStr = typeof msg === "string" ? msg : JSON.stringify(msg);
+      // Stale token: user ID no longer exists in DB (DB was wiped & re-seeded)
+      // Force a logout so the user is sent back to /login to re-authenticate
+      if (res.status === 401 || msgStr.toLowerCase().includes("not found") || msgStr.toLowerCase().includes("not authenticated")) {
+        window.dispatchEvent(new CustomEvent("auth:expired"));
+      }
+      throw new Error(msgStr);
     }
     return data;
   }
