@@ -33,6 +33,12 @@ const TOURS = {
       body: "After your manager approves (Locked), go to 'Check-ins' in the sidebar. Enter your actual value and status (On Track / Completed) for each quarter.",
       tip: "You can update check-ins for any quarter at any time — previous entries are always visible.",
     },
+    {
+      icon: "💬",
+      title: "Feedback Thread",
+      body: "At the bottom of every goal sheet, there is a Feedback Thread — a private chat between you and your manager. Use it to ask questions, clarify targets, or respond to rework comments.",
+      tip: "Messages are only visible to you and your manager. It keeps all goal-related conversations in one place.",
+    },
   ],
   Manager: [
     {
@@ -64,6 +70,12 @@ const TOURS = {
       title: "Team Check-ins",
       body: "The 'Team Check-ins' view shows all locked sheets. Click through to see each employee's quarter-by-quarter actuals and scores.",
       tip: "Scores update in real-time as employees log their actuals.",
+    },
+    {
+      icon: "💬",
+      title: "Feedback Thread",
+      body: "Every goal sheet has a Feedback Thread at the bottom — a private chat between you and the employee. Use it to explain rework requests, discuss target values, or give encouragement.",
+      tip: "Open any sheet (Draft, Submitted, or Locked) and scroll down to find the thread. Your messages appear on the right.",
     },
   ],
   Admin: [

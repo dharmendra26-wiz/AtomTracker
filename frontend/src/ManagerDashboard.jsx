@@ -40,19 +40,19 @@ export default function ManagerDashboard() {
     setLoading(true); setErr("");
     Promise.all([
       api("/team-sheets"),
-      api("/team-analytics").catch(() => null),
+      api("/team-analytics"),
     ])
       .then(([s, t]) => {
         if (!alive) return;
-        setSheets(s); setStats(t);
+        setSheets(s);
+        setStats(Array.isArray(t) ? t : []);
         if (retryTimer.current) clearTimeout(retryTimer.current);
       })
       .catch((e) => {
         if (!alive) return;
         setErr(e.message);
-        if (e.message.includes("reach") || e.message.includes("fetch")) {
-          retryTimer.current = setTimeout(loadAll, 15000);
-        }
+        setStats(null);
+        retryTimer.current = setTimeout(loadAll, 15000);
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -113,27 +113,45 @@ export default function ManagerDashboard() {
         })}
       </div>
 
-      {/* Team score chart */}
-      {chartData.length > 0 && (
-        <div className="card p-5 mb-8">
-          <h2 className="font-bold text-slate-800 mb-4">Team Achievement Scores</h2>
+      {/* Team score chart — always visible */}
+      <div className="card p-5 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-slate-800">Team Achievement Scores</h2>
+          {chartData.length > 0 && (
+            <span className="text-xs text-slate-400">
+              Based on latest check-in actuals
+            </span>
+          )}
+        </div>
+        {chartData.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-slate-400">
+            <TrendingUp size={32} className="opacity-20" />
+            <p className="text-sm text-center">
+              {loading
+                ? "Loading team data…"
+                : stats === null
+                ? "Could not load scores — retrying shortly"
+                : "Scores will appear here once employees start logging check-ins"}
+            </p>
+          </div>
+        ) : (
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={chartData} barSize={32}>
+            <BarChart data={chartData} barSize={36}>
               <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }}
-                formatter={v => [`${v}`, "Score"]}
+                formatter={v => [`${v.toFixed(1)}`, "Score"]}
               />
-              <Bar dataKey="score" radius={[6, 6, 0, 0]}>
+              <Bar dataKey="score" radius={[6, 6, 0, 0]} minPointSize={4}>
                 {chartData.map((_, i) => (
                   <Cell key={i} fill={i % 2 === 0 ? "#6366f1" : "#8b5cf6"} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
-      )}
+        )}
+      </div>
 
       {err && (
         <div className="alert alert-err mb-4">
