@@ -5,9 +5,9 @@ import { api } from "./api";
 const AuthCtx = createContext(null);
 
 function loadFromStorage() {
-  const token = localStorage.getItem("token");
-  const name = localStorage.getItem("name");
-  const role = localStorage.getItem("role");
+  const token = sessionStorage.getItem("token");
+  const name = sessionStorage.getItem("name");
+  const role = sessionStorage.getItem("role");
   if (!token) return null;
   try {
     const payload = jwtDecode(token);
@@ -23,17 +23,17 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!user) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("name");
-      localStorage.removeItem("role");
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("name");
+      sessionStorage.removeItem("role");
     }
   }, [user]);
 
   async function login(email, password) {
     const res = await api("/login", { method: "POST", body: { email, password }, auth: false });
-    localStorage.setItem("token", res.token);
-    localStorage.setItem("name", res.name);
-    localStorage.setItem("role", res.role);
+    sessionStorage.setItem("token", res.token);
+    sessionStorage.setItem("name", res.name);
+    sessionStorage.setItem("role", res.role);
     setUser(loadFromStorage());
     return res;
   }
