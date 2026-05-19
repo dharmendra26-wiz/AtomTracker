@@ -28,16 +28,12 @@ export default function LoginPage() {
   const [warm, setWarm] = useState(false);
   const [warming, setWarming] = useState(true);
 
-  // Ping backend on mount so Render wakes up before the user clicks login
-  // Also trigger /setup-demo to ensure all demo data is pre-seeded
+  // Call /setup-demo on mount — this wakes the server AND seeds all demo users in one request.
+  // Login buttons stay disabled until this completes so judges can never hit "user not found".
   useEffect(() => {
     setWarming(true);
-    fetch(`${BASE}/`, { signal: AbortSignal.timeout(35000) })
-      .then(() => {
-        setWarm(true);
-        // Seed demo data silently — idempotent so safe to call every time
-        fetch(`${BASE}/setup-demo`).catch(() => {});
-      })
+    fetch(`${BASE}/setup-demo`, { signal: AbortSignal.timeout(40000) })
+      .then(r => r.ok ? setWarm(true) : setWarm(false))
       .catch(() => setWarm(false))
       .finally(() => setWarming(false));
   }, []);
@@ -118,7 +114,13 @@ export default function LoginPage() {
             {warming && (
               <div className="alert alert-info mb-4 animate-fade-in">
                 <Wifi size={15} className="shrink-0" />
-                <span>Waking up the server… first load may take ~30 s.</span>
+                <span>Setting up demo accounts… this takes ~30 s on first load.</span>
+              </div>
+            )}
+
+            {!warming && !warm && (
+              <div className="alert alert-err mb-4 animate-fade-in">
+                <span>Server unreachable — please wait a moment and refresh.</span>
               </div>
             )}
 
@@ -147,7 +149,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                 />
               </div>
-              <button type="submit" disabled={busy} className="btn btn-primary w-full justify-center py-2.5 text-sm">
+              <button type="submit" disabled={busy || warming} className="btn btn-primary w-full justify-center py-2.5 text-sm">
                 {busy ? <><Loader2 size={16} className="animate-spin-slow" /> Signing in…</> : "Sign in"}
               </button>
             </form>
@@ -161,7 +163,7 @@ export default function LoginPage() {
                 {DEMOS.map((d) => (
                   <button
                     key={d.label}
-                    disabled={busy}
+                    disabled={busy || warming}
                     onClick={() => doLogin(d.email, d.password)}
                     className="w-full flex items-center justify-between px-4 py-3 rounded-xl
                                border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50
